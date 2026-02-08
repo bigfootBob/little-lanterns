@@ -1,9 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { Alert, Image, ImageBackground, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, ImageBackground, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import LanternIcon from '../assets/images/icon.png';
 import { db } from '../firebaseConfig';
 import i18n from './i18n';
 
@@ -56,16 +55,8 @@ export default function App() {
       resizeMode="cover"
       className="flex-1"
     >
-      <SafeAreaView className="flex-1 bg-[#121212]" style={{ flex: 1 }}>
+      <SafeAreaView className="flex-1 bg-black/40" style={{ flex: 1 }}>
         <View className="flex-1 items-center justify-center p-5">
-
-          <Image
-            source={LanternIcon}
-            className="w-24 h-24 mb-4"
-            resizeMode="contain"
-          />
-
-          <Text className="text-white text-2xl font-semibold mb-8">Little Lanterns</Text>
 
           <Text className="text-white text-8xl font-bold mb-10">{seconds}s</Text>
 
