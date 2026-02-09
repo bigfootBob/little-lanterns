@@ -5,9 +5,15 @@ module.exports = {
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
+      fontFamily: {
+        quicksand: ["Quicksand_400Regular", "sans-serif"],
+        castoro: ["Castoro_400Regular", "serif"],
+        "castoro-italic": ["Castoro_400Regular_Italic", "serif"],
+      },
       colors: {
-        'lantern-amber': '#FF8C00', // Matches your icon
+        'lantern-marine': '#005f69', // Dark marine blue-green
         'clinical-green': '#00C851',
+        'lantern-light': '#e9efee', // Off-white for borders
       },
     },
   },

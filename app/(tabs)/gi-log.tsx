@@ -1,6 +1,6 @@
 import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../firebaseConfig';
 import i18n from '../i18n';
@@ -58,11 +58,11 @@ export default function GILogScreen() {
             <View className="bg-[#2a2a2a] p-4 rounded-xl mb-3 flex-row items-center justify-between">
                 <View className="flex-row items-center">
                     <View className={`w-8 h-8 rounded-full ${getBristolColor(item.type)} items-center justify-center mr-4`}>
-                        <Text className="text-black font-bold">{item.type}</Text>
+                        <Text className="text-black font-bold font-quicksand">{item.type}</Text>
                     </View>
                     <View>
-                        <Text className="text-white font-bold">{i18n.t(`type${item.type}`)}</Text>
-                        <Text className="text-gray-400 text-xs">{date.toLocaleString()}</Text>
+                        <Text className="text-white font-bold font-quicksand">{i18n.t(`type${item.type}`)}</Text>
+                        <Text className="text-gray-400 text-xs font-quicksand">{date.toLocaleString()}</Text>
                     </View>
                 </View>
             </View>
@@ -70,61 +70,67 @@ export default function GILogScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-black">
-            <View className="p-5 flex-1">
-                <Text className="text-white text-3xl font-bold mb-6 text-center">
-                    {i18n.t('giLogTitle')}
-                </Text>
-
-                {/* Logging Section */}
-                <View className="bg-[#1a1a1a] p-5 rounded-3xl mb-6">
-                    <Text className="text-amber-500 text-xl font-bold mb-4 text-center">
-                        {i18n.t('logStoolHeader')}
+        <ImageBackground
+            source={require('../../assets/images/background.webp')}
+            resizeMode="cover"
+            className="flex-1"
+        >
+            <SafeAreaView className="flex-1 bg-black/60">
+                <View className="p-5 flex-1">
+                    <Text className="text-white text-3xl font-bold mb-6 text-center font-castoro">
+                        {i18n.t('giLogTitle')}
                     </Text>
 
-                    <Text className="text-gray-300 mb-2 text-center">{i18n.t('stoolTypeLabel')}</Text>
-
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
-                        {BRISTOL_TYPES.map((type) => (
-                            <TouchableOpacity
-                                key={type}
-                                onPress={() => setSelectedType(type)}
-                                className={`mr-3 p-4 rounded-2xl items-center justify-center w-32 h-32 ${selectedType === type ? 'bg-amber-600 border-2 border-white' : 'bg-gray-800'}`}
-                            >
-                                <View className={`w-10 h-10 rounded-full ${getBristolColor(type)} items-center justify-center mb-2`}>
-                                    <Text className="text-black font-bold text-lg">{type}</Text>
-                                </View>
-                                <Text className="text-white text-xs text-center" numberOfLines={3}>
-                                    {i18n.t(`type${type}`)}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-
-                    <TouchableOpacity
-                        className={`p-4 rounded-xl w-full items-center ${selectedType ? 'bg-[#00C851]' : 'bg-gray-700'}`}
-                        onPress={handleSave}
-                        disabled={!selectedType}
-                    >
-                        <Text className={`text-xl font-bold ${selectedType ? 'text-white' : 'text-gray-400'}`}>
-                            {i18n.t('saveLog')}
+                    {/* Logging Section */}
+                    <View className="bg-[#1a1a1a]/80 p-5 rounded-3xl mb-6">
+                        <Text className="text-amber-500 text-xl font-bold mb-4 text-center font-quicksand">
+                            {i18n.t('logStoolHeader')}
                         </Text>
-                    </TouchableOpacity>
-                </View>
 
-                {/* History Section */}
-                <Text className="text-white text-lg font-bold mb-3 ml-2">History</Text>
-                {logs.length === 0 ? (
-                    <Text className="text-gray-500 text-center mt-10">{i18n.t('noLogs')}</Text>
-                ) : (
-                    <FlatList
-                        data={logs}
-                        renderItem={renderLogItem}
-                        keyExtractor={item => item.id}
-                        showsVerticalScrollIndicator={false}
-                    />
-                )}
-            </View>
-        </SafeAreaView>
+                        <Text className="text-gray-300 mb-2 text-center font-quicksand">{i18n.t('stoolTypeLabel')}</Text>
+
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
+                            {BRISTOL_TYPES.map((type) => (
+                                <TouchableOpacity
+                                    key={type}
+                                    onPress={() => setSelectedType(type)}
+                                    className={`mr-3 p-4 rounded-2xl items-center justify-center w-32 h-32 border-2 ${selectedType === type ? 'bg-amber-600 border-lantern-light' : 'bg-gray-800 border-lantern-light'}`}
+                                >
+                                    <View className={`w-10 h-10 rounded-full ${getBristolColor(type)} items-center justify-center mb-2`}>
+                                        <Text className="text-black font-bold text-lg font-quicksand">{type}</Text>
+                                    </View>
+                                    <Text className="text-white text-xs text-center font-quicksand" numberOfLines={3}>
+                                        {i18n.t(`type${type}`)}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            className={`p-4 rounded-full w-[80%] items-center ${selectedType ? 'bg-[#00C851]' : 'bg-gray-700'} border-2 border-lantern-light`}
+                            onPress={handleSave}
+                            disabled={!selectedType}
+                        >
+                            <Text className={`text-xl font-bold font-quicksand ${selectedType ? 'text-white' : 'text-gray-400'}`}>
+                                {i18n.t('saveLog')}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* History Section */}
+                    <Text className="text-white text-lg font-bold mb-3 ml-2 font-quicksand">History</Text>
+                    {logs.length === 0 ? (
+                        <Text className="text-gray-500 text-center mt-10 font-quicksand">{i18n.t('noLogs')}</Text>
+                    ) : (
+                        <FlatList
+                            data={logs}
+                            renderItem={renderLogItem}
+                            keyExtractor={item => item.id}
+                            showsVerticalScrollIndicator={false}
+                        />
+                    )}
+                </View>
+            </SafeAreaView>
+        </ImageBackground>
     );
 }

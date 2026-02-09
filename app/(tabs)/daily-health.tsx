@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import i18n from '../i18n';
 
@@ -44,84 +44,90 @@ export default function DailyHealthScreen() {
     const timeSlots = getTimeSlots(medFrequency);
 
     return (
-        <SafeAreaView className="flex-1 bg-black">
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
-                <Text className="text-white text-3xl font-bold mb-8 text-center">
-                    {i18n.t('dailyHealthTitle')}
-                </Text>
-
-                <View className="bg-[#1a1a1a] p-6 rounded-3xl mb-6">
-                    <Text className="text-amber-500 text-xl font-bold mb-4">
-                        {i18n.t('medsHeader')}
+        <ImageBackground
+            source={require('../../assets/images/background.webp')}
+            resizeMode="cover"
+            className="flex-1"
+        >
+            <SafeAreaView className="flex-1 bg-black/60">
+                <ScrollView contentContainerStyle={{ padding: 20 }}>
+                    <Text className="text-white text-3xl font-bold mb-8 text-center font-castoro">
+                        {i18n.t('dailyHealthTitle')}
                     </Text>
 
-                    {!isSetup ? (
-                        <View className="items-center">
-                            <Text className="text-white text-lg mb-6">
-                                {i18n.t('medsFrequencyQuestion')}
-                            </Text>
+                    <View className="bg-[#1a1a1a]/80 p-6 rounded-3xl mb-6">
+                        <Text className="text-amber-500 text-xl font-bold mb-4 font-quicksand">
+                            {i18n.t('medsHeader')}
+                        </Text>
 
-                            <View className="flex-row items-center mb-8">
-                                <TouchableOpacity
-                                    className="bg-gray-700 w-12 h-12 rounded-full items-center justify-center"
-                                    onPress={() => setMedFrequency(Math.max(0, medFrequency - 1))}
-                                >
-                                    <Text className="text-white text-2xl">-</Text>
-                                </TouchableOpacity>
-
-                                <Text className="text-white text-4xl font-bold mx-8">
-                                    {medFrequency}
+                        {!isSetup ? (
+                            <View className="items-center">
+                                <Text className="text-white text-lg mb-6 font-quicksand">
+                                    {i18n.t('medsFrequencyQuestion')}
                                 </Text>
 
+                                <View className="flex-row items-center mb-8">
+                                    <TouchableOpacity
+                                        className="bg-gray-700 w-12 h-12 rounded-full items-center justify-center border-2 border-lantern-light"
+                                        onPress={() => setMedFrequency(Math.max(0, medFrequency - 1))}
+                                    >
+                                        <Text className="text-white text-2xl font-quicksand">-</Text>
+                                    </TouchableOpacity>
+
+                                    <Text className="text-white text-4xl font-bold mx-8 font-quicksand">
+                                        {medFrequency}
+                                    </Text>
+
+                                    <TouchableOpacity
+                                        className="bg-gray-700 w-12 h-12 rounded-full items-center justify-center border-2 border-lantern-light"
+                                        onPress={() => setMedFrequency(Math.min(5, medFrequency + 1))}
+                                    >
+                                        <Text className="text-white text-2xl font-quicksand">+</Text>
+                                    </TouchableOpacity>
+                                </View>
+
                                 <TouchableOpacity
-                                    className="bg-gray-700 w-12 h-12 rounded-full items-center justify-center"
-                                    onPress={() => setMedFrequency(Math.min(5, medFrequency + 1))}
+                                    className={`p-4 rounded-full w-[80%] items-center ${medFrequency > 0 ? 'bg-amber-600' : 'bg-gray-800'} border-2 border-lantern-light`}
+                                    onPress={handleStartSetup}
+                                    disabled={medFrequency === 0}
                                 >
-                                    <Text className="text-white text-2xl">+</Text>
+                                    <Text className="text-white font-bold text-lg font-quicksand">
+                                        {i18n.t('startTrackingMeds')}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
-
-                            <TouchableOpacity
-                                className={`p-4 rounded-xl w-full items-center ${medFrequency > 0 ? 'bg-amber-600' : 'bg-gray-800'}`}
-                                onPress={handleStartSetup}
-                                disabled={medFrequency === 0}
-                            >
-                                <Text className="text-white font-bold text-lg">
-                                    {i18n.t('startTrackingMeds')}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <View>
-                            {timeSlots.map((slotKey, index) => {
-                                const isGiven = dosesGiven.has(index);
-                                return (
-                                    <View key={index} className="flex-row items-center justify-between mb-4 bg-[#2a2a2a] p-4 rounded-xl">
-                                        <Text className="text-white text-lg font-medium">
-                                            {i18n.t(slotKey)}
-                                        </Text>
-                                        <TouchableOpacity
-                                            className={`px-4 py-2 rounded-lg ${isGiven ? 'bg-green-600' : 'bg-gray-600'}`}
-                                            onPress={() => toggleDose(index)}
-                                        >
-                                            <Text className="text-white font-bold text-sm">
-                                                {isGiven ? i18n.t('medGiven') : i18n.t('medNotGiven')}
+                        ) : (
+                            <View>
+                                {timeSlots.map((slotKey, index) => {
+                                    const isGiven = dosesGiven.has(index);
+                                    return (
+                                        <View key={index} className="flex-row items-center justify-between mb-4 bg-[#2a2a2a] p-4 rounded-xl">
+                                            <Text className="text-white text-lg font-medium font-quicksand">
+                                                {i18n.t(slotKey)}
                                             </Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                );
-                            })}
+                                            <TouchableOpacity
+                                                className={`px-4 py-2 rounded-lg ${isGiven ? 'bg-green-600' : 'bg-gray-600'} border-2 border-lantern-light`}
+                                                onPress={() => toggleDose(index)}
+                                            >
+                                                <Text className="text-white font-bold text-sm font-quicksand">
+                                                    {isGiven ? i18n.t('medGiven') : i18n.t('medNotGiven')}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    );
+                                })}
 
-                            <TouchableOpacity
-                                className="mt-4 items-center"
-                                onPress={() => setIsSetup(false)}
-                            >
-                                <Text className="text-gray-400 text-sm">Edit Frequency</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                </View>
-            </ScrollView>
-        </SafeAreaView>
+                                <TouchableOpacity
+                                    className="mt-4 items-center"
+                                    onPress={() => setIsSetup(false)}
+                                >
+                                    <Text className="text-gray-400 text-sm font-quicksand">Edit Frequency</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        </ImageBackground>
     );
 }

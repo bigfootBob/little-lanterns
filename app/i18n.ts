@@ -5,13 +5,15 @@ const i18n = new I18n({
     en: {
         startTracking: 'TRACK STORM',
         stopTracking: 'STOP TRACKING',
-        appTitle: 'LITTLE LANTERNS',
-        appSubtitle: 'lighting up the world one episode at a time',
+        appTitle: 'Little Lanterns',
+        appSubtitle: 'Tracking trends for a calmer day.',
         tabTracker: 'Tracker',
         tabGILog: 'GI Log',
-        tabDailyHealth: 'Daily Health',
+        tabDailyHealth: 'Health',
         tabReview: 'Review',
-        usingShower: 'USING SHOWER',
+        tabTips: 'Tips',
+
+        // GI LogShower: 'USING SHOWER',
         showerLogged: 'SHOWER LOGGED',
         saveEpisode: 'SAVE EPISODE',
         addNotesPlaceholder: 'Add notes (e.g. triggers)...',
@@ -45,6 +47,30 @@ const i18n = new I18n({
         type7: 'Type 7: Watery, no solid pieces (liquid)',
         deleteLog: 'Delete',
         noLogs: 'No logs yet.',
+        calmedByLabel: 'What calmed the storm?',
+        calmOptionMeds: 'Meds',
+        calmOptionTime: 'Time',
+        calmOptionDrinkFood: 'Drink/Food',
+        calmOptionDiaper: 'Diaper Change',
+        calmOptionComfort: 'Comfort',
+        calmOptionOther: 'Other',
+        selectCalmFactor: 'Select Calm Factor',
+        howToUse: 'How To Use',
+        howToUseTitle: 'How to Use Little Lanterns',
+        howToUseContent: `Welcome to Little Lanterns. I hope this helps someone to track the triggers and successes our SCN2A LOF loved ones experience.
+
+To start tracking duration of an episode just click "Track Storm". When you stop you will have the option to save any potential triggers and what may have helped resolve the storm.
+
+Tap the Log to log GI related data.
+
+Tap Tips to get community tips and tricks.
+
+Tap Meds to track if you gave your loved one their daily meds (if applicable)
+
+Tap Review to show stats over time. Show these to your health professional.`,
+        close: 'Close',
+        tipsMessage: 'Additional community tips and tricks online at LittleLanterns.info',
+        goThereNow: 'Go There Now',
     },
     de: { // German
         startTracking: 'TRACKING STARTEN',
@@ -57,6 +83,13 @@ const i18n = new I18n({
         errorTitle: 'Fehler',
         modalTitle: 'Dies ist ein Modal',
         goHome: 'Zur Startseite',
+        tabTips: 'Tipps',
+        howToUse: 'Anleitung',
+        howToUseTitle: 'Anleitung für Little Lanterns',
+        howToUseContent: 'Anweisungen hier...',
+        close: 'Schließen',
+        tipsMessage: 'Weitere Tipps und Tricks der Community finden Sie online unter LittleLanterns.info',
+        goThereNow: 'Jetzt dorthin gehen',
     },
     it: { // Italian
         startTracking: 'INIZIA TRACCIAMENTO',
@@ -69,6 +102,13 @@ const i18n = new I18n({
         errorTitle: 'Errore',
         modalTitle: 'Questo è un modale',
         goHome: 'Vai alla home',
+        tabTips: 'Suggerimenti',
+        howToUse: 'Come usare',
+        howToUseTitle: 'Come usare Little Lanterns',
+        howToUseContent: 'Istruzioni qui...',
+        close: 'Chiudi',
+        tipsMessage: 'Ulteriori suggerimenti e trucchi della comunità online su LittleLanterns.info',
+        goThereNow: 'Vai lì ora',
     },
     es: { // Spanish
         startTracking: 'EMPEZAR SEGUIMIENTO',
@@ -81,6 +121,13 @@ const i18n = new I18n({
         errorTitle: 'Error',
         modalTitle: 'Esto es un modal',
         goHome: 'Ir a inicio',
+        tabTips: 'Consejos',
+        howToUse: 'Cómo usar',
+        howToUseTitle: 'Cómo usar Little Lanterns',
+        howToUseContent: 'Instrucciones aquí...',
+        close: 'Cerrar',
+        tipsMessage: 'Consejos y trucos adicionales de la comunidad en línea en LittleLanterns.info',
+        goThereNow: 'Ir allí ahora',
     },
     da: { // Danish
         startTracking: 'START TRACKING',
@@ -93,6 +140,13 @@ const i18n = new I18n({
         errorTitle: 'Fejl',
         modalTitle: 'Dette er en modal',
         goHome: 'Gå til hjem',
+        tabTips: 'Tips',
+        howToUse: 'Sådan bruges',
+        howToUseTitle: 'Sådan bruges Little Lanterns',
+        howToUseContent: 'Instruktioner her...',
+        close: 'Luk',
+        tipsMessage: 'Yderligere tips og tricks fra community online på LittleLanterns.info',
+        goThereNow: 'Gå derhen nu',
     },
     uk: { // Ukrainian
         startTracking: 'ПОЧАТИ ВІДСТЕЖЕННЯ',
@@ -105,6 +159,13 @@ const i18n = new I18n({
         errorTitle: 'Помилка',
         modalTitle: 'Це модальне вікно',
         goHome: 'На головну',
+        tabTips: 'Поради',
+        howToUse: 'Як користуватися',
+        howToUseTitle: 'Як користуватися Little Lanterns',
+        howToUseContent: 'Інструкції тут...',
+        close: 'Закрити',
+        tipsMessage: 'Додаткові поради та підказки спільноти онлайн на LittleLanterns.info',
+        goThereNow: 'Перейти зараз',
     },
 });
 

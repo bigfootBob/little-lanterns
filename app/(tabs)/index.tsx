@@ -9,9 +9,20 @@ import i18n from '../i18n';
 export default function App() {
   const [active, setActive] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  const [showerUsed, setShowerUsed] = useState(false);
+  // const [showerUsed, setShowerUsed] = useState(false); // Removed
   const [notes, setNotes] = useState('');
   const [reviewing, setReviewing] = useState(false);
+  const [calmedBy, setCalmedBy] = useState('');
+  const [calmModalVisible, setCalmModalVisible] = useState(false);
+
+  const calmOptions = [
+    { key: 'meds', label: 'calmOptionMeds' },
+    { key: 'time', label: 'calmOptionTime' },
+    { key: 'drink_food', label: 'calmOptionDrinkFood' },
+    { key: 'diaper', label: 'calmOptionDiaper' },
+    { key: 'comfort', label: 'calmOptionComfort' },
+    { key: 'other', label: 'calmOptionOther' },
+  ];
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -42,15 +53,16 @@ export default function App() {
     try {
       await addDoc(collection(db, "episodes"), {
         duration_seconds: seconds,
-        shower_reset: showerUsed,
+        // shower_reset: showerUsed, // Removed
         notes: notes,
+        calmed_by: calmedBy, // New data point
         variant: "LoF",
         timestamp: serverTimestamp(),
       });
       Alert.alert(i18n.t('savedTitle'), i18n.t('savedMessage'));
       setSeconds(0);
-      setShowerUsed(false);
       setNotes('');
+      setCalmedBy('');
     } catch (e: any) {
       Alert.alert(i18n.t('errorTitle'), e.message);
     }
@@ -72,54 +84,86 @@ export default function App() {
               className="w-[80px] h-[80px] mb-2"
               resizeMode="contain"
             />
-            <Text className="text-white text-3xl font-bold mb-4 tracking-widest text-center">
+            <Text className="text-white text-3xl mb-0 tracking-widest text-center font-castoro">
               {i18n.t('appTitle')}
             </Text>
-            <Text className="text-white text-sm font-bold mb-8 tracking-widest text-center">
+            <Text className="text-white text-sm -mt-2 mb-8 tracking-widest text-center font-castoro-italic opacity-90">
               {i18n.t('appSubtitle')}
             </Text>
           </View>
 
           {/* Main Content Section */}
-          <View className="items-center w-full mb-12">
+          <View className="items-center w-full mb-48">
             <Text className="text-white text-8xl font-bold mb-10">{seconds}s</Text>
 
             {!active && !reviewing ? (
               <TouchableOpacity
-                className="bg-amber-600 p-8 rounded-3xl w-full items-center"
+                className="bg-lantern-marine p-8 rounded-full w-[80%] items-center shadow-lg border-2 border-lantern-light"
                 onPress={handleStart}
               >
                 <Text className="text-white text-xl font-bold">{i18n.t('startTracking')}</Text>
               </TouchableOpacity>
             ) : active ? (
               <TouchableOpacity
-                className="bg-red-600 p-8 rounded-3xl w-full items-center"
+                className="bg-red-500 p-8 rounded-full w-[80%] items-center shadow-lg border-2 border-lantern-light"
                 onPress={handleStop}
               >
                 <Text className="text-white text-xl font-bold">{i18n.t('stopTracking')}</Text>
               </TouchableOpacity>
             ) : (
-              <View className="w-full">
-                {/* <TouchableOpacity
-              className={`${showerUsed ? 'bg-[#0099cc] border-2 border-white' : 'bg-[#33b5e5]'
-                } p-6 rounded-2xl w-full items-center mb-5`}
-              onPress={() => setShowerUsed(!showerUsed)}
-            >
-              <Text className="text-white text-xl font-bold">
-                {showerUsed ? i18n.t('showerLogged') : i18n.t('usingShower')}
-              </Text>
-            </TouchableOpacity> */}
-
+              <View className="w-full items-center">
+                {/* Triggers Input */}
                 <TextInput
-                  className="bg-[#222] text-white p-4 rounded-xl mb-5 text-lg"
+                  className="bg-[#2a2a2a] text-white p-4 rounded-xl mb-5 text-lg w-[80%] border border-[#e9efee]"
                   placeholder={i18n.t('addNotesPlaceholder')}
                   placeholderTextColor="#999"
                   value={notes}
                   onChangeText={setNotes}
+                  multiline={true}
+                  style={{ height: 100, textAlignVertical: 'top' }} // Larger height
                 />
 
+                {/* Calmed By Dropdown */}
                 <TouchableOpacity
-                  className="bg-[#00C851] p-8 rounded-3xl w-full items-center"
+                  className="bg-[#2a2a2a] p-4 rounded-xl mb-5 w-[80%] border border-[#e9efee] flex-row justify-between items-center"
+                  onPress={() => setCalmModalVisible(true)}
+                >
+                  <Text className={calmedBy ? "text-white text-lg" : "text-[#999] text-lg"}>
+                    {calmedBy ? i18n.t(calmOptions.find(o => o.key === calmedBy)?.label || 'selectCalmFactor') : i18n.t('calmedByLabel')}
+                  </Text>
+                  <Text className="text-white">▼</Text>
+                </TouchableOpacity>
+
+                {/* Calm Selector Modal */}
+                {calmModalVisible && (
+                  <View className="absolute top-0 left-0 right-0 bottom-0 justify-center items-center z-50">
+                    <View className="bg-[#1a3749] rounded-2xl w-[80%] p-4 border border-[#f3d275] shadow-lg">
+                      <Text className="text-white text-xl font-bold mb-4 text-center">{i18n.t('selectCalmFactor')}</Text>
+                      {calmOptions.map((option) => (
+                        <TouchableOpacity
+                          key={option.key}
+                          className="p-3 border-b border-[#ffffff20] w-full items-center"
+                          onPress={() => {
+                            setCalmedBy(option.key);
+                            setCalmModalVisible(false);
+                          }}
+                        >
+                          <Text className="text-white text-lg">{i18n.t(option.label)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                      <TouchableOpacity
+                        className="mt-4 p-3 bg-lantern-marine rounded-full items-center"
+                        onPress={() => setCalmModalVisible(false)}
+                      >
+                        <Text className="text-white font-bold">{i18n.t('close')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+
+                <TouchableOpacity
+                  className="bg-[#00C851] p-8 rounded-full w-[80%] items-center border-2 border-lantern-light"
                   onPress={handleSave}
                 >
                   <Text className="text-white text-xl font-bold">{i18n.t('saveEpisode')}</Text>
