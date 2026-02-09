@@ -69,8 +69,11 @@ Tap Meds to track if you gave your loved one their daily meds (if applicable)
 
 Tap Review to show stats over time. Show these to your health professional.`,
         close: 'Close',
+
         tipsMessage: 'Additional community tips and tricks online at LittleLanterns.info',
         goThereNow: 'Go There Now',
+        saveSuccessTitle: 'Successfully entered Into the log!',
+        saveErrorTitle: 'Oh no! ... there was an error!',
     },
     de: { // German
         startTracking: 'TRACKING STARTEN',

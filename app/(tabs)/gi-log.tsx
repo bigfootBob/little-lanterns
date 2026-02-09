@@ -1,7 +1,8 @@
 import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import StatusModal from '../../components/StatusModal';
 import { db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
@@ -16,6 +17,11 @@ const BRISTOL_TYPES = [1, 2, 3, 4, 5, 6, 7];
 export default function GILogScreen() {
     const [selectedType, setSelectedType] = useState<number | null>(null);
     const [logs, setLogs] = useState<StoolLog[]>([]);
+
+    // Status Modal State
+    const [statusModalVisible, setStatusModalVisible] = useState(false);
+    const [statusModalType, setStatusModalType] = useState<'success' | 'error'>('success');
+    const [statusModalMessage, setStatusModalMessage] = useState('');
 
     useEffect(() => {
         // Real-time listener for GI logs
@@ -39,9 +45,16 @@ export default function GILogScreen() {
                 timestamp: serverTimestamp(),
             });
             setSelectedType(null);
-            Alert.alert(i18n.t('savedTitle'), "Log added.");
+
+            // Success Modal
+            setStatusModalType('success');
+            setStatusModalMessage(i18n.t('savedTitle')); // Or specific success message
+            setStatusModalVisible(true);
         } catch (e: any) {
-            Alert.alert(i18n.t('errorTitle'), e.message);
+            // Error Modal
+            setStatusModalType('error');
+            setStatusModalMessage(e.message);
+            setStatusModalVisible(true);
         }
     };
 
@@ -130,6 +143,14 @@ export default function GILogScreen() {
                         />
                     )}
                 </View>
+
+                {/* Status Modal */}
+                <StatusModal
+                    visible={statusModalVisible}
+                    type={statusModalType}
+                    message={statusModalMessage}
+                    onClose={() => setStatusModalVisible(false)}
+                />
             </SafeAreaView>
         </ImageBackground>
     );
