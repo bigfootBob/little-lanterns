@@ -2,18 +2,19 @@ import * as Haptics from 'expo-haptics';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ImageBackground, Keyboard, Image as RNImage, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
 import { db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 export default function App() {
+  const insets = useSafeAreaInsets();
   const [active, setActive] = useState(false);
   const [seconds, setSeconds] = useState(0);
   // const [showerUsed, setShowerUsed] = useState(false); // Removed
   const [notes, setNotes] = useState('');
   const [reviewing, setReviewing] = useState(false);
-  const [calmedBy, setCalmedBy] = useState('');
+  const [calmedBy, setCalmedBy] = useState('seizure_stopped');
   const [calmModalVisible, setCalmModalVisible] = useState(false);
 
   // Status Modal State
@@ -22,6 +23,7 @@ export default function App() {
   const [statusModalMessage, setStatusModalMessage] = useState('');
 
   const calmOptions = [
+    { key: 'seizure_stopped', label: 'calmOptionSeizureStopped' },
     { key: 'meds', label: 'calmOptionMeds' },
     { key: 'time', label: 'calmOptionTime' },
     { key: 'drink_food', label: 'calmOptionDrinkFood' },
@@ -72,7 +74,7 @@ export default function App() {
 
       setSeconds(0);
       setNotes('');
-      setCalmedBy('');
+      setCalmedBy('seizure_stopped');
     } catch (e: any) {
       // Error Modal
       setStatusModalType('error');
@@ -88,7 +90,7 @@ export default function App() {
       resizeMode="cover"
       className="flex-1"
     >
-      <SafeAreaView className="flex-1 bg-black/60" style={{ flex: 1 }}>
+      <View className="flex-1 bg-black/60" style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View className="flex-1 justify-between p-5 pt-12">
             {/* Header Section */}
@@ -195,7 +197,7 @@ export default function App() {
           message={statusModalMessage}
           onClose={() => setStatusModalVisible(false)}
         />
-      </SafeAreaView>
+      </View>
     </ImageBackground>
   );
 }

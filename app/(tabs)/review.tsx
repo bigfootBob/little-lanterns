@@ -1,115 +1,172 @@
 import { collection, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { Dimensions, ImageBackground, ScrollView, Text, View } from 'react-native';
+import { Dimensions, ImageBackground, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 const screenWidth = Dimensions.get('window').width;
 
 export default function ReviewScreen() {
-    const [stormData, setStormData] = useState<any[]>([]);
-    const [giData, setGiData] = useState<any[]>([]);
-    const [selectedStorm, setSelectedStorm] = useState<any>(null);
+    const insets = useSafeAreaInsets();
+    const [weekOffset, setWeekOffset] = useState(0);
+    const [currentWeekData, setCurrentWeekData] = useState<any[]>([]);
+    const [previousWeekData, setPreviousWeekData] = useState<any[]>([]);
+
+    const [currentGiData, setCurrentGiData] = useState<any[]>([]);
+    const [previousGiData, setPreviousGiData] = useState<any[]>([]);
+
+    const [selectedPoint, setSelectedPoint] = useState<any>(null);
+    const [detailModalVisible, setDetailModalVisible] = useState(false);
+
+    // Helpers
+    const getStartOfWeek = (date: Date) => {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday start
+        d.setDate(diff);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    };
+
+    const getWeekRange = (offset: number) => {
+        const now = new Date();
+        const start = getStartOfWeek(now);
+        start.setDate(start.getDate() - (offset * 7));
+
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+
+        return { start, end };
+    };
+
+    const { start: currentStart, end: currentEnd } = getWeekRange(weekOffset);
+    const { start: prevStart, end: prevEnd } = getWeekRange(weekOffset + 1);
 
     useEffect(() => {
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const timestamp7DaysAgo = Timestamp.fromDate(sevenDaysAgo);
+        const fetchScope = async () => {
+            // Fetch Storms
+            const fetchStorms = (start: Date, end: Date, isCurrent: boolean) => {
+                const q = query(
+                    collection(db, "episodes"),
+                    where("timestamp", ">=", Timestamp.fromDate(start)),
+                    where("timestamp", "<=", Timestamp.fromDate(end)),
+                    orderBy("timestamp", "asc")
+                );
+                return onSnapshot(q, (snapshot) => {
+                    const data = snapshot.docs.map(doc => {
+                        const d = doc.data();
+                        const date = d.timestamp.toDate();
+                        // Day index 0-6 (Mon-Sun)
+                        const dayIndex = (date.getDay() + 6) % 7;
 
-        // Fetch Storm Episodes
-        const stormQuery = query(
-            collection(db, "episodes"),
-            where("timestamp", ">=", timestamp7DaysAgo),
-            orderBy("timestamp", "asc")
-        );
+                        return {
+                            value: d.duration_seconds,
+                            dataPointText: isCurrent ? `${Math.floor(d.duration_seconds / 60)}m` : '', // Text only on current
+                            label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][dayIndex],
+                            dayIndex, // For sorting/aligning
+                            // Custom properties
+                            notes: d.notes,
+                            calmed_by: d.calmed_by,
+                            fullDate: date.toLocaleString(),
+                            // Style
+                            dataPointColor: isCurrent ? '#f3d275' : 'rgba(243, 210, 117, 0.5)',
+                            textColor: 'white',
+                            textShiftY: -5,
+                            textShiftX: -10,
+                            // Link to modal
+                            onPress: () => {
+                                setSelectedPoint({ ...d, fullDate: date.toLocaleString(), type: 'storm' });
+                                setDetailModalVisible(true);
+                            }
+                        };
+                    });
+                    // Fill gaps for chart consistency (0-6)
+                    // Note: Gifted charts might need continuous data points for lining up? 
+                    // For simplicity, we just map what we have. 
+                    // To align strictly by day, we'd need to fill 0s for missing days.
+                    const filledData = Array(7).fill(null).map((_, i) => {
+                        const existing = data.find(d => d.dayIndex === i);
+                        return existing || { value: 0, label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i], dayIndex: i, hideDataPoint: true };
+                    });
 
-        const unsubscribeStorm = onSnapshot(stormQuery, (snapshot) => {
-            const data = snapshot.docs.map(doc => {
-                const d = doc.data();
-                const date = d.timestamp.toDate();
-                return {
-                    value: d.duration_seconds,
-                    dataPointText: `${Math.floor(d.duration_seconds / 60)}m ${d.duration_seconds % 60}s`,
-                    label: date.toLocaleDateString('en-US', { weekday: 'short' }),
-                    // Custom properties for tooltip
-                    notes: d.notes,
-                    calmed_by: d.calmed_by,
-                    fullDate: date.toLocaleString(),
-                    // Style
-                    dataPointColor: '#f3d275',
-                    dataPointRadius: 5,
-                    textColor: 'white',
-                    textShiftY: -5,
-                    textShiftX: -10,
-                };
-            });
-            setStormData(data);
-        });
+                    if (isCurrent) setCurrentWeekData(filledData);
+                    else setPreviousWeekData(filledData);
+                });
+            };
 
-        // Fetch GI Logs
-        const giQuery = query(
-            collection(db, "gi_logs"),
-            where("timestamp", ">=", timestamp7DaysAgo),
-            orderBy("timestamp", "asc")
-        );
+            const unsubStormCurr = fetchStorms(currentStart, currentEnd, true);
+            const unsubStormPrev = fetchStorms(prevStart, prevEnd, false);
 
-        const unsubscribeGi = onSnapshot(giQuery, (snapshot) => {
-            const data = snapshot.docs.map(doc => {
-                const d = doc.data();
-                const date = d.timestamp.toDate();
-                let color = '#FACC15'; // Default Yellow (5-7)
-                if (d.type <= 2) color = '#F87171'; // Red (1-2)
-                else if (d.type >= 3 && d.type <= 4) color = '#4ADE80'; // Green (3-4)
+            // Fetch GI
+            const fetchGI = (start: Date, end: Date, isCurrent: boolean) => {
+                const q = query(
+                    collection(db, "gi_logs"),
+                    where("timestamp", ">=", Timestamp.fromDate(start)),
+                    where("timestamp", "<=", Timestamp.fromDate(end)),
+                    orderBy("timestamp", "asc")
+                );
+                return onSnapshot(q, (snapshot) => {
+                    const data = snapshot.docs.map(doc => {
+                        const d = doc.data();
+                        const date = d.timestamp.toDate();
+                        const dayIndex = (date.getDay() + 6) % 7;
 
-                return {
-                    value: d.type,
-                    label: date.toLocaleDateString('en-US', { weekday: 'short' }),
-                    dataPointColor: color,
-                    dataPointRadius: 6,
-                    // Tooltip data if needed, though not explicitly requested for GI
-                    type: d.type,
-                    fullDate: date.toLocaleString(),
-                };
-            });
-            setGiData(data);
-        });
+                        let color = '#FACC15'; // 5-7
+                        if (d.type <= 2) color = '#F87171'; // 1-2
+                        else if (d.type >= 3 && d.type <= 4) color = '#4ADE80'; // 3-4
 
-        return () => {
-            unsubscribeStorm();
-            unsubscribeGi();
+                        // Fade if previous
+                        if (!isCurrent) color = 'rgba(200, 200, 200, 0.3)';
+
+                        return {
+                            value: d.type,
+                            label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][dayIndex],
+                            dayIndex,
+                            dataPointColor: color,
+                            dataPointRadius: 6,
+                            // Modal Data
+                            typeVal: d.type,
+                            fullDate: date.toLocaleString(),
+                            onPress: () => {
+                                setSelectedPoint({ ...d, fullDate: date.toLocaleString(), type: 'gi', typeVal: d.type });
+                                setDetailModalVisible(true);
+                            }
+                        };
+                    });
+
+                    const filledData = Array(7).fill(null).map((_, i) => {
+                        const existing = data.find(d => d.dayIndex === i);
+                        // Value 0 is off chart effectively if min is 1? Or just hide it.
+                        return existing || { value: 0, label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i], dayIndex: i, hideDataPoint: true, customDataPoint: () => <View /> };
+                    });
+
+                    if (isCurrent) setCurrentGiData(filledData);
+                    else setPreviousGiData(filledData);
+                });
+            };
+
+            const unsubGiCurr = fetchGI(currentStart, currentEnd, true);
+            const unsubGiPrev = fetchGI(prevStart, prevEnd, false);
+
+            return () => {
+                unsubStormCurr();
+                unsubStormPrev();
+                unsubGiCurr();
+                unsubGiPrev();
+            };
         };
-    }, []);
 
-    const renderStormTooltip = () => {
-        if (!selectedStorm) return (
-            <Text className="text-gray-400 text-center italic font-quicksand mt-4">
-                Tap a data point to see details.
-            </Text>
-        );
+        const cleanup = fetchScope();
+        return () => { cleanup.then(c => c()); };
 
-        return (
-            <View className="bg-[#1a3749] p-4 rounded-xl border border-[#f3d275] mt-4 w-full">
-                <Text className="text-[#f3d275] font-bold mb-1 font-quicksand">{selectedStorm.fullDate}</Text>
+    }, [weekOffset]);
 
-                {selectedStorm.notes ? (
-                    <View className="mb-2">
-                        <Text className="text-gray-400 text-xs uppercase font-quicksand">Notes/Triggers</Text>
-                        <Text className="text-white font-quicksand">{selectedStorm.notes}</Text>
-                    </View>
-                ) : (
-                    <Text className="text-gray-500 italic mb-2 font-quicksand">No notes recorded.</Text>
-                )}
-
-                {selectedStorm.calmed_by ? (
-                    <View>
-                        <Text className="text-gray-400 text-xs uppercase font-quicksand">Calmed By</Text>
-                        <Text className="text-white font-bold font-quicksand">{i18n.t(`calmOption${selectedStorm.calmed_by.charAt(0).toUpperCase() + selectedStorm.calmed_by.slice(1).replace('_', '')}`) || selectedStorm.calmed_by}</Text>
-                    </View>
-                ) : null}
-            </View>
-        );
+    const toggleModal = () => {
+        setDetailModalVisible(!detailModalVisible);
+        if (detailModalVisible) setSelectedPoint(null);
     };
 
     return (
@@ -118,88 +175,173 @@ export default function ReviewScreen() {
             resizeMode="cover"
             className="flex-1"
         >
-            <SafeAreaView className="flex-1 bg-black/85">
+            <View className="flex-1 bg-black/85" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
                 <ScrollView contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 20 }}>
                     <Text className="text-white text-3xl font-bold mb-6 text-center font-castoro mt-5">
                         {i18n.t('tabReview')}
                     </Text>
 
+                    {/* Week Navigation */}
+                    <View className="flex-row justify-between items-center mb-6 bg-[#1a1a1a] p-3 rounded-xl border border-gray-700">
+                        <TouchableOpacity onPress={() => setWeekOffset(weekOffset + 1)} className="p-2">
+                            <Text className="text-lantern-light font-bold text-xl">{'<'}</Text>
+                        </TouchableOpacity>
+                        <View className="items-center">
+                            <Text className="text-white font-bold font-quicksand">
+                                {currentStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - {currentEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            </Text>
+                            <Text className="text-gray-400 text-xs font-quicksand">
+                                (Comparing to previous week)
+                            </Text>
+                        </View>
+                        <TouchableOpacity onPress={() => setWeekOffset(Math.max(0, weekOffset - 1))} className="p-2" disabled={weekOffset === 0}>
+                            <Text className={`font-bold text-xl ${weekOffset === 0 ? 'text-gray-600' : 'text-lantern-light'}`}>{'>'}</Text>
+                        </TouchableOpacity>
+                    </View>
+
                     {/* Storm Chart Section */}
-                    <View className="mb-10">
-                        <Text className="text-white text-xl font-bold mb-4 font-quicksand border-b border-gray-700 pb-2">
-                            Storm Activity (Last 7 Days)
+                    <View className="mb-10 items-center">
+                        <Text className="text-white text-xl font-bold mb-4 font-quicksand border-b border-gray-700 pb-2 w-full">
+                            Storm Activity
                         </Text>
 
-                        {stormData.length > 0 ? (
-                            <View>
-                                <LineChart
-                                    data={stormData}
-                                    color="#f3d275"
-                                    thickness={3}
-                                    dataPointsColor="#f3d275"
-                                    onPress={(item: any) => setSelectedStorm(item)}
-                                    width={screenWidth - 60}
-                                    height={220}
-                                    spacing={50} // Adjust based on data density needed
-                                    initialSpacing={20}
-                                    yAxisTextStyle={{ color: 'gray' }}
-                                    xAxisLabelTextStyle={{ color: 'gray' }}
-                                    hideDataPoints={false}
-                                    isAnimated
-                                    animationDuration={1000}
-                                    // Hide Y Axis lines to look cleaner
-                                    hideRules
-                                    yAxisThickness={0}
-                                    xAxisThickness={1}
-                                    xAxisColor="gray"
-                                />
-                                {renderStormTooltip()}
-                            </View>
-                        ) : (
-                            <Text className="text-gray-500 text-center py-10 font-quicksand">No storm data recorded this week.</Text>
-                        )}
+                        <View style={{ width: screenWidth - 40, alignItems: 'center' }}>
+                            <LineChart
+                                data={currentWeekData}
+                                data2={previousWeekData} // Overlay
+                                color="#f3d275"
+                                color2="rgba(243, 210, 117, 0.3)" // Faded
+                                thickness={3}
+                                thickness2={2}
+                                dataPointsColor="#f3d275"
+                                dataPointsColor2="rgba(243, 210, 117, 0.3)"
+                                width={screenWidth - 80} // Centered nicely
+                                height={220}
+                                spacing={(screenWidth - 100) / 7} // Distribute evenly
+                                initialSpacing={20}
+                                yAxisTextStyle={{ color: 'gray' }}
+                                xAxisLabelTextStyle={{ color: 'gray' }}
+                                hideDataPoints={false}
+                                isAnimated
+                                animationDuration={1000}
+                                hideRules
+                                yAxisThickness={0}
+                                xAxisThickness={1}
+                                xAxisColor="gray"
+                            />
+                        </View>
+                        <Text className="text-gray-500 text-xs italic mt-2">Tap a point for details. Faded line is previous week.</Text>
                     </View>
 
                     {/* GI Log Chart Section */}
-                    <View className="mb-10">
-                        <Text className="text-white text-xl font-bold mb-4 font-quicksand border-b border-gray-700 pb-2">
-                            GI Log (Last 7 Days)
+                    <View className="mb-20 items-center">
+                        <Text className="text-white text-xl font-bold mb-4 font-quicksand border-b border-gray-700 pb-2 w-full">
+                            GI Log
                         </Text>
 
-                        {giData.length > 0 ? (
-                            <View>
-                                <LineChart
-                                    data={giData}
-                                    color="transparent" // Hide line, just show points (Scatter-like)
-                                    dataPointsColor="#FACC15" // Dynamic via data point
-                                    thickness={0}
-                                    width={screenWidth - 60}
-                                    height={220}
-                                    spacing={50}
-                                    initialSpacing={20}
-                                    yAxisTextStyle={{ color: 'gray' }}
-                                    xAxisLabelTextStyle={{ color: 'gray' }}
-                                    hideRules
-                                    yAxisThickness={0}
-                                    xAxisThickness={1}
-                                    xAxisColor="gray"
-                                    maxValue={7}
-                                    noOfSections={7} // 1-7 layout
-                                    stepValue={1}
-                                />
-                                <View className="flex-row justify-between mt-4 px-2">
-                                    <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-[#F87171] mr-2" /><Text className="text-gray-400 text-xs">Constipated (1-2)</Text></View>
-                                    <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-[#4ADE80] mr-2" /><Text className="text-gray-400 text-xs">Ideal (3-4)</Text></View>
-                                    <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-[#FACC15] mr-2" /><Text className="text-gray-400 text-xs">Loose (5-7)</Text></View>
-                                </View>
+                        <View style={{ width: screenWidth - 40, alignItems: 'center' }}>
+                            <LineChart
+                                data={currentGiData}
+                                data2={previousGiData}
+                                color="transparent"
+                                color2="transparent"
+                                thickness={0}
+                                thickness2={0}
+                                dataPointsColor="#FACC15"
+                                dataPointsColor2="rgba(200, 200, 200, 0.3)"
+                                width={screenWidth - 80}
+                                height={220}
+                                spacing={(screenWidth - 100) / 7}
+                                initialSpacing={20}
+                                yAxisTextStyle={{ color: 'gray' }}
+                                xAxisLabelTextStyle={{ color: 'gray' }}
+                                hideRules
+                                yAxisThickness={0}
+                                xAxisThickness={1}
+                                xAxisColor="gray"
+                                maxValue={7}
+                                noOfSections={7}
+                                stepValue={1}
+                            />
+                            <View className="flex-row justify-between mt-4 px-2 w-full">
+                                <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-[#F87171] mr-2" /><Text className="text-gray-400 text-xs">Constipated</Text></View>
+                                <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-[#4ADE80] mr-2" /><Text className="text-gray-400 text-xs">Ideal</Text></View>
+                                <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-[#FACC15] mr-2" /><Text className="text-gray-400 text-xs">Loose</Text></View>
                             </View>
-                        ) : (
-                            <Text className="text-gray-500 text-center py-10 font-quicksand">No GI logs recorded this week.</Text>
-                        )}
+                        </View>
                     </View>
 
+                    {/* Detail Modal */}
+                    <Modal
+                        animationType="fade"
+                        transparent={true}
+                        visible={detailModalVisible}
+                        onRequestClose={() => setDetailModalVisible(false)}
+                    >
+                        <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
+                            activeOpacity={1}
+                            onPress={() => setDetailModalVisible(false)}
+                        >
+                            <View className="bg-[#1a1a1a] p-6 rounded-2xl w-full border border-gray-600" onStartShouldSetResponder={() => true}>
+                                <Text className="text-lantern-light text-xl font-bold mb-2 font-castoro text-center">
+                                    {selectedPoint?.type === 'storm' ? 'Storm Detail' : 'GI Log Detail'}
+                                </Text>
+                                <Text className="text-gray-400 text-center mb-4 font-quicksand">{selectedPoint?.fullDate}</Text>
+
+                                {selectedPoint?.type === 'storm' && (
+                                    <>
+                                        <Text className="text-white text-3xl font-bold text-center mb-4">
+                                            {Math.floor(selectedPoint.value / 60)}m {selectedPoint.value % 60}s
+                                        </Text>
+
+                                        <View className="bg-[#2a2a2a] p-4 rounded-xl mb-4">
+                                            <Text className="text-gray-400 text-xs uppercase font-quicksand mb-1">Notes / Triggers</Text>
+                                            <Text className="text-white font-quicksand text-base">
+                                                {selectedPoint.notes || "No notes recorded."}
+                                            </Text>
+                                        </View>
+
+                                        {selectedPoint.calmed_by && (
+                                            <View className="bg-[#2a2a2a] p-4 rounded-xl">
+                                                <Text className="text-gray-400 text-xs uppercase font-quicksand mb-1">Calmed By</Text>
+                                                <Text className="text-green-400 font-bold font-quicksand text-base">
+                                                    {i18n.t(`calmOption${selectedPoint.calmed_by.charAt(0).toUpperCase() + selectedPoint.calmed_by.slice(1).replace('_', '')}`) || selectedPoint.calmed_by}
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </>
+                                )}
+
+                                {selectedPoint?.type === 'gi' && (
+                                    <>
+                                        <View className={`w-16 h-16 rounded-full self-center items-center justify-center mb-4 ${selectedPoint.dataPointColor === '#F87171' ? 'bg-red-400' : selectedPoint.dataPointColor === '#4ADE80' ? 'bg-green-500' : 'bg-yellow-500'}`}>
+                                            <Text className="text-black font-bold text-2xl font-quicksand">{selectedPoint.typeVal}</Text>
+                                        </View>
+
+                                        <View className="bg-[#2a2a2a] p-4 rounded-xl">
+                                            <Text className="text-white font-quicksand text-center text-lg">
+                                                {i18n.t(`type${selectedPoint.typeVal}`)}
+                                            </Text>
+                                            <Text className="text-gray-400 font-quicksand text-center mt-2 italic">
+                                                {i18n.t(`type${selectedPoint.typeVal}Description`)}
+                                            </Text>
+                                        </View>
+                                    </>
+                                )}
+
+                                <TouchableOpacity
+                                    className="mt-6 bg-gray-700 p-3 rounded-full items-center"
+                                    onPress={() => setDetailModalVisible(false)}
+                                >
+                                    <Text className="text-white font-bold font-quicksand">Close</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
+
                 </ScrollView>
-            </SafeAreaView>
+            </View>
         </ImageBackground>
     );
 }

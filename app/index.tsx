@@ -2,11 +2,12 @@ import * as Haptics from 'expo-haptics';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Alert, ImageBackground, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '../firebaseConfig';
 import i18n from './i18n';
 
 export default function App() {
+  const insets = useSafeAreaInsets();
   const [active, setActive] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [showerUsed, setShowerUsed] = useState(false);
@@ -55,7 +56,7 @@ export default function App() {
       resizeMode="cover"
       className="flex-1"
     >
-      <SafeAreaView className="flex-1 bg-black/40" style={{ flex: 1 }}>
+      <View className="flex-1 bg-black/40" style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <View className="flex-1 items-center justify-center p-5">
 
           <Text className="text-white text-8xl font-bold mb-10">{seconds}s</Text>
@@ -96,7 +97,7 @@ export default function App() {
             </View>
           )}
         </View>
-      </SafeAreaView>
+      </View>
     </ImageBackground>
   );
 }

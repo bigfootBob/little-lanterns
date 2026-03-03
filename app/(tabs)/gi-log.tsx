@@ -1,7 +1,7 @@
 import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { FlatList, ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ImageBackground, Modal, ScrollView, SectionList, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
 import { db } from '../../firebaseConfig';
 import i18n from '../i18n';
@@ -15,6 +15,7 @@ type StoolLog = {
 const BRISTOL_TYPES = [1, 2, 3, 4, 5, 6, 7];
 
 export default function GILogScreen() {
+    const insets = useSafeAreaInsets();
     const [selectedType, setSelectedType] = useState<number | null>(null);
     const [logs, setLogs] = useState<StoolLog[]>([]);
 
@@ -22,6 +23,12 @@ export default function GILogScreen() {
     const [statusModalVisible, setStatusModalVisible] = useState(false);
     const [statusModalType, setStatusModalType] = useState<'success' | 'error'>('success');
     const [statusModalMessage, setStatusModalMessage] = useState('');
+
+    // Chart Modal State
+    const [chartModalVisible, setChartModalVisible] = useState(false);
+
+    // History Modal State
+    const [historyModalVisible, setHistoryModalVisible] = useState(false);
 
     useEffect(() => {
         // Real-time listener for GI logs
@@ -65,6 +72,38 @@ export default function GILogScreen() {
         return 'bg-yellow-500'; // Diarrhea
     };
 
+    const getWeekStartDate = (date: Date) => {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day; // Adjust for Sunday being 0
+        const weekStart = new Date(d.setDate(diff));
+        weekStart.setHours(0, 0, 0, 0);
+        return weekStart;
+    };
+
+    const groupLogsByWeek = (logs: StoolLog[]) => {
+        const groups: { [key: string]: StoolLog[] } = {};
+        logs.forEach(log => {
+            const date = log.timestamp ? new Date(log.timestamp.seconds * 1000) : new Date();
+            const weekStart = getWeekStartDate(date);
+            const key = weekStart.toDateString(); // Unique key for the week
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(log);
+        });
+
+        // Sort weeks descending
+        const sortedKeys = Object.keys(groups).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+        return sortedKeys.map(key => ({
+            title: `Week of ${new Date(key).toLocaleDateString()}`,
+            data: groups[key]
+        }));
+    };
+
+    const groupedLogs = groupLogsByWeek(logs);
+
+
+
     const renderLogItem = ({ item }: { item: StoolLog }) => {
         const date = item.timestamp ? new Date(item.timestamp.seconds * 1000) : new Date();
         return (
@@ -88,7 +127,7 @@ export default function GILogScreen() {
             resizeMode="cover"
             className="flex-1"
         >
-            <SafeAreaView className="flex-1 bg-black/60">
+            <View className="flex-1 bg-black/60" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
                 <View className="p-5 flex-1">
                     <Text className="text-white text-3xl font-bold mb-6 text-center font-castoro">
                         {i18n.t('giLogTitle')}
@@ -101,6 +140,13 @@ export default function GILogScreen() {
                         </Text>
 
                         <Text className="text-gray-300 mb-2 text-center font-quicksand">{i18n.t('stoolTypeLabel')}</Text>
+
+                        <View className="flex-row justify-between items-center mb-2 px-2">
+                            <Text className="text-gray-400 text-xs italic font-quicksand">{i18n.t('scrollInstructions')}</Text>
+                            <TouchableOpacity onPress={() => setChartModalVisible(true)}>
+                                <Text className="text-lantern-light text-xs font-bold underline font-quicksand">{i18n.t('viewChart')}</Text>
+                            </TouchableOpacity>
+                        </View>
 
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
                             {BRISTOL_TYPES.map((type) => (
@@ -119,8 +165,19 @@ export default function GILogScreen() {
                             ))}
                         </ScrollView>
 
+                        {selectedType && (
+                            <View className="mb-6 bg-gray-800 p-4 rounded-xl border border-gray-700">
+                                <Text className="text-amber-500 font-bold mb-1 font-quicksand text-lg">
+                                    {i18n.t(`type${selectedType}`)}
+                                </Text>
+                                <Text className="text-gray-300 font-quicksand">
+                                    {i18n.t(`type${selectedType}Description`)}
+                                </Text>
+                            </View>
+                        )}
+
                         <TouchableOpacity
-                            className={`p-4 rounded-full w-[80%] items-center ${selectedType ? 'bg-[#00C851]' : 'bg-gray-700'} border-2 border-lantern-light`}
+                            className={`p-4 rounded-full w-[80%] self-center items-center ${selectedType ? 'bg-[#00C851]' : 'bg-gray-700'} border-2 border-lantern-light`}
                             onPress={handleSave}
                             disabled={!selectedType}
                         >
@@ -128,20 +185,14 @@ export default function GILogScreen() {
                                 {i18n.t('saveLog')}
                             </Text>
                         </TouchableOpacity>
-                    </View>
 
-                    {/* History Section */}
-                    <Text className="text-white text-lg font-bold mb-3 ml-2 font-quicksand">History</Text>
-                    {logs.length === 0 ? (
-                        <Text className="text-gray-500 text-center mt-10 font-quicksand">{i18n.t('noLogs')}</Text>
-                    ) : (
-                        <FlatList
-                            data={logs}
-                            renderItem={renderLogItem}
-                            keyExtractor={item => item.id}
-                            showsVerticalScrollIndicator={false}
-                        />
-                    )}
+                        <TouchableOpacity
+                            onPress={() => setHistoryModalVisible(true)}
+                            className="mt-4 self-center"
+                        >
+                            <Text className="text-lantern-light underline font-quicksand">{i18n.t('viewHistory')}</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Status Modal */}
@@ -151,7 +202,70 @@ export default function GILogScreen() {
                     message={statusModalMessage}
                     onClose={() => setStatusModalVisible(false)}
                 />
-            </SafeAreaView>
+
+                {/* Chart Modal */}
+                <Modal
+                    animationType="fade"
+                    transparent={true}
+                    visible={chartModalVisible}
+                    onRequestClose={() => setChartModalVisible(false)}
+                >
+                    <TouchableWithoutFeedback onPress={() => setChartModalVisible(false)}>
+                        <View className="flex-1 bg-black/80 items-center justify-center p-5">
+                            <TouchableWithoutFeedback>
+                                <View className="bg-white p-2 rounded-xl w-full h-[80%] items-center justify-center">
+                                    <View className="flex-1 w-full bg-gray-200 items-center justify-center rounded-lg border-2 border-dashed border-gray-400">
+                                        {/* Placeholder for actual WebP chart */}
+                                        <Text className="text-gray-500 font-bold text-center">Bristol Stool Chart Image Placeholder</Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        className="mt-4 bg-gray-800 py-3 px-8 rounded-full"
+                                        onPress={() => setChartModalVisible(false)}
+                                    >
+                                        <Text className="text-white font-bold font-quicksand">{i18n.t('close')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </TouchableWithoutFeedback>
+                        </View>
+                    </TouchableWithoutFeedback>
+                </Modal>
+
+                {/* History Modal */}
+                <Modal
+                    animationType="slide"
+                    transparent={true}
+                    visible={historyModalVisible}
+                    onRequestClose={() => setHistoryModalVisible(false)}
+                >
+                    <View className="flex-1 bg-black/95" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
+                        <View className="flex-1 p-5">
+                            <View className="flex-row justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                                <Text className="text-white text-2xl font-bold font-castoro">{i18n.t('historyTitle')}</Text>
+                                <TouchableOpacity onPress={() => setHistoryModalVisible(false)} className="bg-gray-800 p-2 rounded-lg">
+                                    <Text className="text-lantern-light font-bold font-quicksand">{i18n.t('close')}</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {logs.length === 0 ? (
+                                <Text className="text-gray-500 text-center mt-10 font-quicksand">{i18n.t('noLogs')}</Text>
+                            ) : (
+                                <SectionList
+                                    sections={groupedLogs}
+                                    renderItem={renderLogItem}
+                                    renderSectionHeader={({ section: { title } }) => (
+                                        <View className="bg-black/90 py-2 mb-2 border-b border-gray-700">
+                                            <Text className="text-lantern-light font-bold font-quicksand text-lg">{title}</Text>
+                                        </View>
+                                    )}
+                                    keyExtractor={item => item.id}
+                                    showsVerticalScrollIndicator={false}
+                                    stickySectionHeadersEnabled={true}
+                                />
+                            )}
+                        </View>
+                    </View>
+                </Modal>
+            </View>
         </ImageBackground>
     );
 }
