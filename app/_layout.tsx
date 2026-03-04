@@ -9,6 +9,7 @@ import { Castoro_400Regular, Castoro_400Regular_Italic } from '@expo-google-font
 import { Quicksand_300Light, Quicksand_400Regular, Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold, useFonts } from '@expo-google-fonts/quicksand';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { Platform, View } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -39,7 +40,7 @@ export default function RootLayout() {
     return null;
   }
 
-  return (
+  const appContent = (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -48,4 +49,16 @@ export default function RootLayout() {
       <StatusBar style="auto" />
     </ThemeProvider>
   );
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', width: '100%' }}>
+        <View style={{ width: '100%', maxWidth: 480, height: '100%', overflow: 'hidden' }}>
+          {appContent}
+        </View>
+      </View>
+    );
+  }
+
+  return appContent;
 }
