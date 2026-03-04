@@ -1,5 +1,5 @@
 import * as admin from 'firebase-admin';
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 
 /**
  * STRATEGY: 14-Day Reengagement Campaign
@@ -8,7 +8,7 @@ import * as functions from 'firebase-functions';
  */
 export const reengagementCampaign = functions.pubsub
     .schedule('every 24 hours') // Runs once a day
-    .onRun(async (context) => {
+    .onRun(async (context: functions.EventContext) => {
 
         // Use the current time to find the 14-day window
         const now = Date.now();
@@ -31,10 +31,11 @@ export const reengagementCampaign = functions.pubsub
         // 2. CAMPAIGN EXECUTION: Prepare the notification payload
         const messages: admin.messaging.Message[] = [];
 
-        inactiveUsersSnapshot.forEach(userDoc => {
+        inactiveUsersSnapshot.forEach((userDoc: admin.firestore.QueryDocumentSnapshot) => {
             const userData = userDoc.data();
 
-            if (userData.fcmToken) {
+            // Explicitly omit web users if their platform is recorded as 'web'
+            if (userData.fcmToken && userData.platform !== 'web') {
                 messages.push({
                     token: userData.fcmToken,
                     notification: {
@@ -51,7 +52,7 @@ export const reengagementCampaign = functions.pubsub
 
         // 3. DELIVERY: Send the batch
         if (messages.length > 0) {
-            await admin.messaging().sendAll(messages);
+            await admin.messaging().sendEach(messages);
             console.log(`Sent 14-day re-engagement nudge to ${messages.length} users.`);
         }
 

@@ -1,346 +1,365 @@
 import { collection, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
-import { Dimensions, ImageBackground, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { LineChart } from 'react-native-gifted-charts';
+import { useEffect, useMemo, useState } from 'react';
+import { Dimensions, ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { BarChart, LineChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 const screenWidth = Dimensions.get('window').width;
 
+type FilterType = '30' | '90' | 'YTD';
+
+type Episode = {
+    id: string;
+    timestamp: Date;
+    duration_seconds: number;
+    notes?: string;
+    calmed_by?: string;
+};
+
+type GILog = {
+    id: string;
+    timestamp: Date;
+    type: number;
+};
+
 export default function ReviewScreen() {
     const insets = useSafeAreaInsets();
-    const [weekOffset, setWeekOffset] = useState(0);
-    const [currentWeekData, setCurrentWeekData] = useState<any[]>([]);
-    const [previousWeekData, setPreviousWeekData] = useState<any[]>([]);
+    const [selectedFilter, setSelectedFilter] = useState<FilterType>('30');
 
-    const [currentGiData, setCurrentGiData] = useState<any[]>([]);
-    const [previousGiData, setPreviousGiData] = useState<any[]>([]);
+    // Raw Data
+    const [allEpisodes, setAllEpisodes] = useState<Episode[]>([]);
+    const [allGILogs, setAllGILogs] = useState<GILog[]>([]);
 
-    const [selectedPoint, setSelectedPoint] = useState<any>(null);
     const [detailModalVisible, setDetailModalVisible] = useState(false);
+    const [selectedPoint, setSelectedPoint] = useState<any>(null);
 
-    // Helpers
-    const getStartOfWeek = (date: Date) => {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday start
-        d.setDate(diff);
-        d.setHours(0, 0, 0, 0);
-        return d;
-    };
-
-    const getWeekRange = (offset: number) => {
-        const now = new Date();
-        const start = getStartOfWeek(now);
-        start.setDate(start.getDate() - (offset * 7));
-
-        const end = new Date(start);
-        end.setDate(end.getDate() + 6);
-        end.setHours(23, 59, 59, 999);
-
-        return { start, end };
-    };
-
-    const { start: currentStart, end: currentEnd } = getWeekRange(weekOffset);
-    const { start: prevStart, end: prevEnd } = getWeekRange(weekOffset + 1);
-
+    // Fetch Date Logic: Minimum of 30 days, 90 days, or Jan 1st of current year.
     useEffect(() => {
-        const fetchScope = async () => {
-            // Fetch Storms
-            const fetchStorms = (start: Date, end: Date, isCurrent: boolean) => {
-                const q = query(
-                    collection(db, "episodes"),
-                    where("timestamp", ">=", Timestamp.fromDate(start)),
-                    where("timestamp", "<=", Timestamp.fromDate(end)),
-                    orderBy("timestamp", "asc")
-                );
-                return onSnapshot(q, (snapshot) => {
-                    const data = snapshot.docs.map(doc => {
-                        const d = doc.data();
-                        const date = d.timestamp.toDate();
-                        // Day index 0-6 (Mon-Sun)
-                        const dayIndex = (date.getDay() + 6) % 7;
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now);
+        thirtyDaysAgo.setDate(now.getDate() - 30);
 
-                        return {
-                            value: d.duration_seconds,
-                            dataPointText: isCurrent ? `${Math.floor(d.duration_seconds / 60)}m` : '', // Text only on current
-                            label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][dayIndex],
-                            dayIndex, // For sorting/aligning
-                            // Custom properties
-                            notes: d.notes,
-                            calmed_by: d.calmed_by,
-                            fullDate: date.toLocaleString(),
-                            // Style
-                            dataPointColor: isCurrent ? '#f3d275' : 'rgba(243, 210, 117, 0.5)',
-                            textColor: 'white',
-                            textShiftY: -5,
-                            textShiftX: -10,
-                            // Link to modal
-                            onPress: () => {
-                                setSelectedPoint({ ...d, fullDate: date.toLocaleString(), type: 'storm' });
-                                setDetailModalVisible(true);
-                            }
-                        };
-                    });
-                    // Fill gaps for chart consistency (0-6)
-                    // Note: Gifted charts might need continuous data points for lining up? 
-                    // For simplicity, we just map what we have. 
-                    // To align strictly by day, we'd need to fill 0s for missing days.
-                    const filledData = Array(7).fill(null).map((_, i) => {
-                        const existing = data.find(d => d.dayIndex === i);
-                        return existing || { value: 0, label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i], dayIndex: i, hideDataPoint: true };
-                    });
+        const ninetyDaysAgo = new Date(now);
+        ninetyDaysAgo.setDate(now.getDate() - 90);
 
-                    if (isCurrent) setCurrentWeekData(filledData);
-                    else setPreviousWeekData(filledData);
-                });
-            };
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-            const unsubStormCurr = fetchStorms(currentStart, currentEnd, true);
-            const unsubStormPrev = fetchStorms(prevStart, prevEnd, false);
+        // Find the absolute oldest date we need to fetch
+        const minDate = new Date(Math.min(thirtyDaysAgo.getTime(), ninetyDaysAgo.getTime(), startOfYear.getTime()));
 
-            // Fetch GI
-            const fetchGI = (start: Date, end: Date, isCurrent: boolean) => {
-                const q = query(
-                    collection(db, "gi_logs"),
-                    where("timestamp", ">=", Timestamp.fromDate(start)),
-                    where("timestamp", "<=", Timestamp.fromDate(end)),
-                    orderBy("timestamp", "asc")
-                );
-                return onSnapshot(q, (snapshot) => {
-                    const data = snapshot.docs.map(doc => {
-                        const d = doc.data();
-                        const date = d.timestamp.toDate();
-                        const dayIndex = (date.getDay() + 6) % 7;
+        const unsubEpisodes = onSnapshot(
+            query(collection(db, "episodes"), where("timestamp", ">=", Timestamp.fromDate(minDate)), orderBy("timestamp", "asc")),
+            (snapshot) => {
+                setAllEpisodes(snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    timestamp: doc.data().timestamp.toDate(),
+                } as Episode)));
+            }
+        );
 
-                        let color = '#FACC15'; // 5-7
-                        if (d.type <= 2) color = '#F87171'; // 1-2
-                        else if (d.type >= 3 && d.type <= 4) color = '#4ADE80'; // 3-4
+        const unsubGI = onSnapshot(
+            query(collection(db, "gi_logs"), where("timestamp", ">=", Timestamp.fromDate(minDate)), orderBy("timestamp", "asc")),
+            (snapshot) => {
+                setAllGILogs(snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    timestamp: doc.data().timestamp.toDate(),
+                } as GILog)));
+            }
+        );
 
-                        // Fade if previous
-                        if (!isCurrent) color = 'rgba(200, 200, 200, 0.3)';
-
-                        return {
-                            value: d.type,
-                            label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][dayIndex],
-                            dayIndex,
-                            dataPointColor: color,
-                            dataPointRadius: 6,
-                            // Modal Data
-                            typeVal: d.type,
-                            fullDate: date.toLocaleString(),
-                            onPress: () => {
-                                setSelectedPoint({ ...d, fullDate: date.toLocaleString(), type: 'gi', typeVal: d.type });
-                                setDetailModalVisible(true);
-                            }
-                        };
-                    });
-
-                    const filledData = Array(7).fill(null).map((_, i) => {
-                        const existing = data.find(d => d.dayIndex === i);
-                        // Value 0 is off chart effectively if min is 1? Or just hide it.
-                        return existing || { value: 0, label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i], dayIndex: i, hideDataPoint: true, customDataPoint: () => <View /> };
-                    });
-
-                    if (isCurrent) setCurrentGiData(filledData);
-                    else setPreviousGiData(filledData);
-                });
-            };
-
-            const unsubGiCurr = fetchGI(currentStart, currentEnd, true);
-            const unsubGiPrev = fetchGI(prevStart, prevEnd, false);
-
-            return () => {
-                unsubStormCurr();
-                unsubStormPrev();
-                unsubGiCurr();
-                unsubGiPrev();
-            };
+        return () => {
+            unsubEpisodes();
+            unsubGI();
         };
+    }, []);
 
-        const cleanup = fetchScope();
-        return () => { cleanup.then(c => c()); };
+    // 1. FILTERING
+    const { filteredEpisodes, filteredGI, filterStartDate } = useMemo(() => {
+        const now = new Date();
+        let startDate = new Date();
+        if (selectedFilter === '30') startDate.setDate(now.getDate() - 30);
+        else if (selectedFilter === '90') startDate.setDate(now.getDate() - 90);
+        else if (selectedFilter === 'YTD') startDate = new Date(now.getFullYear(), 0, 1);
 
-    }, [weekOffset]);
+        startDate.setHours(0, 0, 0, 0);
 
-    const toggleModal = () => {
-        setDetailModalVisible(!detailModalVisible);
-        if (detailModalVisible) setSelectedPoint(null);
+        return {
+            filteredEpisodes: allEpisodes.filter(e => e.timestamp >= startDate),
+            filteredGI: allGILogs.filter(g => g.timestamp >= startDate),
+            filterStartDate: startDate
+        };
+    }, [allEpisodes, allGILogs, selectedFilter]);
+
+
+    // 2. HEATMAP DATA PREP (24 Grid)
+    // Y-axis = Days (Sun-Sat), X-axis = Hours (0-23)
+    const heatmapData = useMemo(() => {
+        const grid: number[][] = Array(7).fill(null).map(() => Array(24).fill(0));
+        let maxVal = 0;
+
+        filteredEpisodes.forEach(ep => {
+            const day = ep.timestamp.getDay(); // 0 is Sunday
+            const hour = ep.timestamp.getHours(); // 0-23
+            // Sum duration in minutes
+            grid[day][hour] += ep.duration_seconds / 60;
+            if (grid[day][hour] > maxVal) maxVal = grid[day][hour];
+        });
+
+        return { grid, maxVal };
+    }, [filteredEpisodes]);
+
+    // Grouping Helper (Day/Week/Month)
+    const getGroupKey = (date: Date, filter: FilterType) => {
+        if (filter === '30') {
+            // Group by Day: "MM/DD"
+            return `${date.getMonth() + 1}/${date.getDate()}`;
+        } else if (filter === '90') {
+            // Group by Week: "Wk X"
+            // Use ISO week logic or simple custom offset
+            const startOfYear = new Date(date.getFullYear(), 0, 1);
+            const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+            const weekNumber = Math.ceil((date.getDay() + 1 + days) / 7);
+            return `Wk${weekNumber}`;
+        } else {
+            // Group by Month: "Jan", "Feb"
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return months[date.getMonth()];
+        }
+    };
+
+    // Initialize groupings to ensure sequential layout (even if 0)
+    const initializeGroups = (filter: FilterType, startDate: Date) => {
+        const groups: string[] = [];
+        const now = new Date();
+        let curr = new Date(startDate);
+
+        while (curr <= now) {
+            const key = getGroupKey(curr, filter);
+            if (groups.length === 0 || groups[groups.length - 1] !== key) {
+                groups.push(key);
+            }
+            curr.setDate(curr.getDate() + 1); // Advance by day to catch every group boundary
+        }
+        return groups;
+    };
+
+    // 3. INCIDENT STACKED BAR CHART & DURATION VS FREQ PREP
+    const { stackedBarData, lineChartData, lineChartData2 } = useMemo(() => {
+        const orderedKeys = initializeGroups(selectedFilter, filterStartDate);
+
+        const epGrouped: Record<string, { count: number, totalDuration: number }> = {};
+        const giGrouped: Record<string, { count: number }> = {};
+
+        orderedKeys.forEach(k => {
+            epGrouped[k] = { count: 0, totalDuration: 0 };
+            giGrouped[k] = { count: 0 };
+        });
+
+        filteredEpisodes.forEach(ep => {
+            const key = getGroupKey(ep.timestamp, selectedFilter);
+            if (epGrouped[key]) {
+                epGrouped[key].count += 1;
+                epGrouped[key].totalDuration += (ep.duration_seconds / 60);
+            }
+        });
+
+        filteredGI.forEach(gi => {
+            const key = getGroupKey(gi.timestamp, selectedFilter);
+            // Consider "Distress" GI as types 1, 2, 6, 7 (Constipation or Diarrhea)
+            if (giGrouped[key] && (gi.type <= 2 || gi.type >= 6)) {
+                giGrouped[key].count += 1;
+            }
+        });
+
+        const stackedResult: any[] = [];
+        const freqLine: any[] = [];
+        const durLine: any[] = [];
+
+        // To prevent overcrowding x-axis on 30 day view
+        const numLabels = orderedKeys.length;
+        const labelInterval = numLabels > 15 ? Math.ceil(numLabels / 6) : 1;
+
+        orderedKeys.forEach((key, index) => {
+            const showLabel = index % labelInterval === 0 || index === numLabels - 1;
+
+            // Stacked Bar Data
+            stackedResult.push({
+                stacks: [
+                    { value: giGrouped[key].count, color: '#f87171', marginBottom: 2 }, // Red for GI
+                    { value: epGrouped[key].count, color: '#facc15' } // Yellow for Storms
+                ],
+                label: showLabel ? key : '',
+            });
+
+            // Line Chart Data
+            freqLine.push({
+                value: epGrouped[key].count,
+                label: showLabel ? key : '',
+                dataPointText: epGrouped[key].count > 0 ? epGrouped[key].count.toString() : ''
+            });
+
+            const avgDur = epGrouped[key].count > 0 ? (epGrouped[key].totalDuration / epGrouped[key].count) : 0;
+            durLine.push({
+                value: avgDur,
+            });
+        });
+
+        return { stackedBarData: stackedResult, lineChartData: freqLine, lineChartData2: durLine };
+    }, [filteredEpisodes, filteredGI, selectedFilter, filterStartDate]);
+
+
+    const renderHeatmap = () => {
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const hours = [0, 4, 8, 12, 16, 20]; // Just showing some axis labels
+
+        return (
+            <View className="bg-[#1a1a1a] p-4 rounded-xl border border-gray-700 w-full mb-8">
+                <Text className="text-white text-lg font-bold mb-1 font-quicksand">Episode Heatmap</Text>
+                <Text className="text-gray-400 text-xs mb-4 font-quicksand">Distribution of episodes over 24 hours.</Text>
+
+                <View className="flex-row">
+                    {/* Y-Axis */}
+                    <View className="mr-2 mt-6">
+                        {days.map(d => <Text key={d} className="text-gray-500 text-[10px] h-6 font-quicksand">{d}</Text>)}
+                    </View>
+
+                    {/* Grid */}
+                    <View className="flex-1">
+                        {/* X-Axis labels */}
+                        <View className="flex-row justify-between mb-2">
+                            {hours.map(h => <Text key={h} className="text-gray-500 text-[10px] font-quicksand">{h}:00</Text>)}
+                        </View>
+
+                        {heatmapData.grid.map((row, dayIdx) => (
+                            <View key={dayIdx} className="flex-row h-6 justify-between items-center mb-0">
+                                {row.map((val, hourIdx) => {
+                                    // Calculate opacity based on max value (ensure min opacity if > 0)
+                                    const opacity = val === 0 ? 0.05 : Math.max(0.2, val / heatmapData.maxVal);
+                                    return (
+                                        <View
+                                            key={hourIdx}
+                                            style={{
+                                                width: `${100 / 24}%`,
+                                                height: 16,
+                                                backgroundColor: `rgba(243, 210, 117, ${opacity})`,
+                                                marginHorizontal: 1,
+                                                borderRadius: 2
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </View>
+                        ))}
+                        <View className="flex-row items-center justify-between mt-4">
+                            <Text className="text-gray-500 text-xs font-quicksand">Less</Text>
+                            <View className="flex-row gap-1">
+                                <View className="w-4 h-4 bg-[#f3d275] opacity-10 rounded-sm" />
+                                <View className="w-4 h-4 bg-[#f3d275] opacity-40 rounded-sm" />
+                                <View className="w-4 h-4 bg-[#f3d275] opacity-70 rounded-sm" />
+                                <View className="w-4 h-4 bg-[#f3d275] opacity-100 rounded-sm" />
+                            </View>
+                            <Text className="text-gray-500 text-xs font-quicksand">More</Text>
+                        </View>
+                    </View>
+                </View>
+            </View>
+        );
     };
 
     return (
-        <ImageBackground
-            source={require('../../assets/images/background.webp')}
-            resizeMode="cover"
-            className="flex-1"
-        >
+        <ImageBackground source={require('../../assets/images/background.webp')} resizeMode="cover" className="flex-1">
             <View className="flex-1 bg-black/85" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
-                <ScrollView contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 20 }}>
-                    <Text className="text-white text-3xl font-bold mb-6 text-center font-castoro mt-5">
-                        {i18n.t('tabReview')}
-                    </Text>
 
-                    {/* Week Navigation */}
-                    <View className="flex-row justify-between items-center mb-6 bg-[#1a1a1a] p-3 rounded-xl border border-gray-700">
-                        <TouchableOpacity onPress={() => setWeekOffset(weekOffset + 1)} className="p-2">
-                            <Text className="text-lantern-light font-bold text-xl">{'<'}</Text>
-                        </TouchableOpacity>
-                        <View className="items-center">
-                            <Text className="text-white font-bold font-quicksand">
-                                {currentStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - {currentEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                            </Text>
-                            <Text className="text-gray-400 text-xs font-quicksand">
-                                (Comparing to previous week)
-                            </Text>
-                        </View>
-                        <TouchableOpacity onPress={() => setWeekOffset(Math.max(0, weekOffset - 1))} className="p-2" disabled={weekOffset === 0}>
-                            <Text className={`font-bold text-xl ${weekOffset === 0 ? 'text-gray-600' : 'text-lantern-light'}`}>{'>'}</Text>
-                        </TouchableOpacity>
-                    </View>
+                {/* Header & Filter */}
+                <View className="px-5 pt-5 pb-2 border-b border-gray-800">
+                    <Text className="text-white text-3xl font-bold mb-4 text-center font-castoro">{i18n.t('tabReview')}</Text>
 
-                    {/* Storm Chart Section */}
-                    <View className="mb-10 items-center">
-                        <Text className="text-white text-xl font-bold mb-4 font-quicksand border-b border-gray-700 pb-2 w-full">
-                            Storm Activity
-                        </Text>
-
-                        <View style={{ width: screenWidth - 40, alignItems: 'center' }}>
-                            <LineChart
-                                data={currentWeekData}
-                                data2={previousWeekData} // Overlay
-                                color="#f3d275"
-                                color2="rgba(243, 210, 117, 0.3)" // Faded
-                                thickness={3}
-                                thickness2={2}
-                                dataPointsColor="#f3d275"
-                                dataPointsColor2="rgba(243, 210, 117, 0.3)"
-                                width={screenWidth - 80} // Centered nicely
-                                height={220}
-                                spacing={(screenWidth - 100) / 7} // Distribute evenly
-                                initialSpacing={20}
-                                yAxisTextStyle={{ color: 'gray' }}
-                                xAxisLabelTextStyle={{ color: 'gray' }}
-                                hideDataPoints={false}
-                                isAnimated
-                                animationDuration={1000}
-                                hideRules
-                                yAxisThickness={0}
-                                xAxisThickness={1}
-                                xAxisColor="gray"
-                            />
-                        </View>
-                        <Text className="text-gray-500 text-xs italic mt-2">Tap a point for details. Faded line is previous week.</Text>
-                    </View>
-
-                    {/* GI Log Chart Section */}
-                    <View className="mb-20 items-center">
-                        <Text className="text-white text-xl font-bold mb-4 font-quicksand border-b border-gray-700 pb-2 w-full">
-                            GI Log
-                        </Text>
-
-                        <View style={{ width: screenWidth - 40, alignItems: 'center' }}>
-                            <LineChart
-                                data={currentGiData}
-                                data2={previousGiData}
-                                color="transparent"
-                                color2="transparent"
-                                thickness={0}
-                                thickness2={0}
-                                dataPointsColor="#FACC15"
-                                dataPointsColor2="rgba(200, 200, 200, 0.3)"
-                                width={screenWidth - 80}
-                                height={220}
-                                spacing={(screenWidth - 100) / 7}
-                                initialSpacing={20}
-                                yAxisTextStyle={{ color: 'gray' }}
-                                xAxisLabelTextStyle={{ color: 'gray' }}
-                                hideRules
-                                yAxisThickness={0}
-                                xAxisThickness={1}
-                                xAxisColor="gray"
-                                maxValue={7}
-                                noOfSections={7}
-                                stepValue={1}
-                            />
-                            <View className="flex-row justify-between mt-4 px-2 w-full">
-                                <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-[#F87171] mr-2" /><Text className="text-gray-400 text-xs">Constipated</Text></View>
-                                <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-[#4ADE80] mr-2" /><Text className="text-gray-400 text-xs">Ideal</Text></View>
-                                <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-[#FACC15] mr-2" /><Text className="text-gray-400 text-xs">Loose</Text></View>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Detail Modal */}
-                    <Modal
-                        animationType="fade"
-                        transparent={true}
-                        visible={detailModalVisible}
-                        onRequestClose={() => setDetailModalVisible(false)}
-                    >
-                        <TouchableOpacity
-                            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
-                            activeOpacity={1}
-                            onPress={() => setDetailModalVisible(false)}
-                        >
-                            <View className="bg-[#1a1a1a] p-6 rounded-2xl w-full border border-gray-600" onStartShouldSetResponder={() => true}>
-                                <Text className="text-lantern-light text-xl font-bold mb-2 font-castoro text-center">
-                                    {selectedPoint?.type === 'storm' ? 'Storm Detail' : 'GI Log Detail'}
+                    <View className="flex-row bg-[#1a1a1a] rounded-lg p-1 border border-gray-700">
+                        {(['30', '90', 'YTD'] as FilterType[]).map(f => (
+                            <TouchableOpacity
+                                key={f}
+                                onPress={() => setSelectedFilter(f)}
+                                className={`flex-1 py-2 rounded-md items-center ${selectedFilter === f ? 'bg-amber-600' : 'bg-transparent'}`}
+                            >
+                                <Text className={`font-bold font-quicksand ${selectedFilter === f ? 'text-white' : 'text-gray-400'}`}>
+                                    {f === 'YTD' ? 'YTD' : `${f} Days`}
                                 </Text>
-                                <Text className="text-gray-400 text-center mb-4 font-quicksand">{selectedPoint?.fullDate}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
 
-                                {selectedPoint?.type === 'storm' && (
-                                    <>
-                                        <Text className="text-white text-3xl font-bold text-center mb-4">
-                                            {Math.floor(selectedPoint.value / 60)}m {selectedPoint.value % 60}s
-                                        </Text>
+                {allEpisodes.length === 0 ? (
+                    <View className="flex-1 justify-center items-center">
+                        <Text className="text-gray-400 font-quicksand">Loading data...</Text>
+                    </View>
+                ) : (
+                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
 
-                                        <View className="bg-[#2a2a2a] p-4 rounded-xl mb-4">
-                                            <Text className="text-gray-400 text-xs uppercase font-quicksand mb-1">Notes / Triggers</Text>
-                                            <Text className="text-white font-quicksand text-base">
-                                                {selectedPoint.notes || "No notes recorded."}
-                                            </Text>
-                                        </View>
+                        {/* 1. Heatmap View */}
+                        {renderHeatmap()}
 
-                                        {selectedPoint.calmed_by && (
-                                            <View className="bg-[#2a2a2a] p-4 rounded-xl">
-                                                <Text className="text-gray-400 text-xs uppercase font-quicksand mb-1">Calmed By</Text>
-                                                <Text className="text-green-400 font-bold font-quicksand text-base">
-                                                    {i18n.t(`calmOption${selectedPoint.calmed_by.charAt(0).toUpperCase() + selectedPoint.calmed_by.slice(1).replace('_', '')}`) || selectedPoint.calmed_by}
-                                                </Text>
-                                            </View>
-                                        )}
-                                    </>
-                                )}
-
-                                {selectedPoint?.type === 'gi' && (
-                                    <>
-                                        <View className={`w-16 h-16 rounded-full self-center items-center justify-center mb-4 ${selectedPoint.dataPointColor === '#F87171' ? 'bg-red-400' : selectedPoint.dataPointColor === '#4ADE80' ? 'bg-green-500' : 'bg-yellow-500'}`}>
-                                            <Text className="text-black font-bold text-2xl font-quicksand">{selectedPoint.typeVal}</Text>
-                                        </View>
-
-                                        <View className="bg-[#2a2a2a] p-4 rounded-xl">
-                                            <Text className="text-white font-quicksand text-center text-lg">
-                                                {i18n.t(`type${selectedPoint.typeVal}`)}
-                                            </Text>
-                                            <Text className="text-gray-400 font-quicksand text-center mt-2 italic">
-                                                {i18n.t(`type${selectedPoint.typeVal}Description`)}
-                                            </Text>
-                                        </View>
-                                    </>
-                                )}
-
-                                <TouchableOpacity
-                                    className="mt-6 bg-gray-700 p-3 rounded-full items-center"
-                                    onPress={() => setDetailModalVisible(false)}
-                                >
-                                    <Text className="text-white font-bold font-quicksand">Close</Text>
-                                </TouchableOpacity>
+                        {/* 2. Incident Stacked Bar Chart */}
+                        <View className="bg-[#1a1a1a] p-4 rounded-xl border border-gray-700 w-full mb-8">
+                            <Text className="text-white text-lg font-bold mb-1 font-quicksand">Incident Stacks</Text>
+                            <Text className="text-gray-400 text-xs mb-6 font-quicksand">Red = GI Distress | Yellow = Storms</Text>
+                            <View style={{ marginLeft: -10 }}>
+                                <BarChart
+                                    stackData={stackedBarData}
+                                    width={screenWidth - 100}
+                                    height={200}
+                                    barWidth={(screenWidth - 120) / Math.max(stackedBarData.length, 1) - 4}
+                                    spacing={4}
+                                    hideRules
+                                    xAxisThickness={1}
+                                    yAxisThickness={0}
+                                    xAxisColor="gray"
+                                    yAxisTextStyle={{ color: 'gray', fontSize: 10 }}
+                                    xAxisLabelTextStyle={{ color: 'gray', fontSize: 10, width: 40, marginLeft: -10 }}
+                                    noOfSections={4}
+                                    isAnimated
+                                />
                             </View>
-                        </TouchableOpacity>
-                    </Modal>
+                        </View>
 
-                </ScrollView>
+                        {/* 3. Duration vs Frequency Line Graph */}
+                        <View className="bg-[#1a1a1a] p-4 rounded-xl border border-gray-700 w-full mb-8">
+                            <Text className="text-white text-lg font-bold mb-1 font-quicksand">Duration vs. Frequency</Text>
+                            <Text className="text-gray-400 text-xs mb-6 font-quicksand">Solid = Count | Dashed = Avg Duration (mins)</Text>
+                            <View style={{ marginLeft: -10 }}>
+                                <LineChart
+                                    data={lineChartData}
+                                    data2={lineChartData2}
+                                    width={screenWidth - 100}
+                                    height={200}
+                                    spacing={(screenWidth - 120) / Math.max(lineChartData.length - 1, 1)}
+                                    color="#facc15" // Yellow for Count
+                                    color2="#4ade80" // Green for Duration
+                                    strokeDashArray2={[5, 5]}
+                                    thickness={3}
+                                    thickness2={2}
+                                    dataPointsColor="#facc15"
+                                    dataPointsColor2="#4ade80"
+                                    dataPointsRadius={3}
+                                    dataPointsRadius2={3}
+                                    hideRules
+                                    xAxisThickness={1}
+                                    yAxisThickness={0}
+                                    xAxisColor="gray"
+                                    yAxisTextStyle={{ color: 'gray', fontSize: 10 }}
+                                    xAxisLabelTextStyle={{ color: 'gray', fontSize: 10, width: 40, marginLeft: -10 }}
+                                    noOfSections={4}
+                                    isAnimated
+                                />
+                            </View>
+                        </View>
+
+                    </ScrollView>
+                )}
             </View>
         </ImageBackground>
     );
