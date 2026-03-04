@@ -6,7 +6,8 @@ import { HapticTab } from '@/components/haptic-tab';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import i18n from '../i18n';
 
-import { Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Modal, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 const TabIcon = ({ source, focused }: { source: any; focused: boolean }) => (
     <View
@@ -33,6 +34,30 @@ const TabIcon = ({ source, focused }: { source: any; focused: boolean }) => (
 export default function TabLayout() {
     const colorScheme = useColorScheme();
     const [modalVisible, setModalVisible] = React.useState(Platform.OS === 'web');
+    const [privacyModalVisible, setPrivacyModalVisible] = React.useState(false);
+
+    React.useEffect(() => {
+        const checkPrivacyStatus = async () => {
+            try {
+                const hasAcknowledged = await AsyncStorage.getItem('@privacy_acknowledged');
+                if (hasAcknowledged !== 'true') {
+                    setPrivacyModalVisible(true);
+                }
+            } catch (e) {
+                console.error("Failed to fetch privacy status from AsyncStorage", e);
+            }
+        };
+        checkPrivacyStatus();
+    }, []);
+
+    const acknowledgePrivacy = async () => {
+        try {
+            await AsyncStorage.setItem('@privacy_acknowledged', 'true');
+            setPrivacyModalVisible(false);
+        } catch (e) {
+            console.error("Failed to save privacy status to AsyncStorage", e);
+        }
+    };
 
     return (
         <View style={{ flex: 1 }}>
@@ -90,10 +115,14 @@ export default function TabLayout() {
                 />
             </Tabs>
 
-            {/* How To Use Link */}
-            <View className="absolute bottom-[60px] w-full items-center">
+            {/* Footer Links */}
+            <View className="absolute bottom-[60px] w-full flex-row justify-center items-center">
                 <TouchableOpacity onPress={() => setModalVisible(true)}>
                     <Text className="text-white/80 font-quicksand underline text-sm">{i18n.t('howToUse')}</Text>
+                </TouchableOpacity>
+                <Text className="text-white/50 mx-3">|</Text>
+                <TouchableOpacity onPress={() => setPrivacyModalVisible(true)}>
+                    <Text className="text-white/80 font-quicksand underline text-sm">{i18n.t('privacyFooterLink')}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -118,6 +147,50 @@ export default function TabLayout() {
                         >
                             <Text className="text-white font-bold">{i18n.t('close')}</Text>
                         </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Privacy & Disclaimer Modal */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={privacyModalVisible}
+                onRequestClose={() => {
+                    // Do not allow Android back button to close if unacknowledged, forcing acknowledgment
+                }}
+            >
+                <View className="flex-1 justify-center items-center bg-black/90 p-5">
+                    <View className="bg-[#1a3749] rounded-2xl w-full max-w-lg border border-[#f3d275] h-[75vh] flex-col">
+                        <View className="p-6 border-b border-gray-600">
+                            <Text className="text-white text-2xl font-bold font-castoro text-center">
+                                {i18n.t('privacyTitle')}
+                            </Text>
+                        </View>
+
+                        <ScrollView className="px-6 py-4 flex-1">
+                            <Text className="text-white text-base font-quicksand mb-6 leading-relaxed">
+                                {i18n.t('privacyContentPart1')}
+                            </Text>
+                            <Text className="text-white text-base font-quicksand mb-6 leading-relaxed">
+                                {i18n.t('privacyContentPart2')}
+                            </Text>
+                            <Text className="text-white text-base font-quicksand mb-6 leading-relaxed">
+                                {i18n.t('privacyContentPart3')}
+                            </Text>
+                            <Text className="text-white text-base font-quicksand mb-6 leading-relaxed">
+                                {i18n.t('privacyContentPart4')}
+                            </Text>
+                        </ScrollView>
+
+                        <View className="p-6 border-t border-gray-600">
+                            <TouchableOpacity
+                                className="bg-lantern-marine p-4 rounded-full items-center border border-[#f3d275]"
+                                onPress={acknowledgePrivacy}
+                            >
+                                <Text className="text-white font-bold text-lg">{i18n.t('privacyAgreeButton')}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </Modal>

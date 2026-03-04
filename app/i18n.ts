@@ -91,6 +91,13 @@ Tap Meds to track if you gave your loved one their daily meds (if applicable)
 
 Tap Review to show stats over time. Show these to your health professional.`,
         close: 'Close',
+        privacyTitle: 'Little Lanterns: Disclaimer & Privacy',
+        privacyAgreeButton: 'I Understand & Agree',
+        privacyContentPart1: '1. Not Medical Advice\nThe information, including but not limited to, text, graphics, images, and other material contained on this website and within the Little Lanterns app is for informational and tracking purposes only. No material on this site is intended to be a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your physician or other qualified healthcare provider with any questions you may have regarding a medical condition.',
+        privacyContentPart2: '2. HIPAA & Compliance Disclosure\nLittle Lanterns is not a HIPAA-compliant platform. While we utilize modern security practices (such as Firebase’s encrypted database) to protect your data, this app is designed as a personal log for caregivers and is not intended to be used as a formal Electronic Health Record (EHR).\n\nDo not enter highly sensitive information if you require HIPAA-level protections.\n\nYou are responsible for the privacy of the data you choose to record and share.',
+        privacyContentPart3: '3. Data Privacy (The "No-Sell" Promise)\nAs a fellow caregiver, I value your privacy.\n\nYour Data is Yours: We do not sell, trade, or rent your personal data or medical logs to third parties.\n\nUsage: Data is stored securely via Google Firebase and is only accessible by the account holder.\n\nTracking: We do NOT collect any PII (Personally Identifiable Information) or email addresses. Your account is entirely anonymous.',
+        privacyContentPart4: '4. "As Is" Software\nLittle Lanterns is provided on an "as-is" basis. While every effort is made to ensure the accuracy of the timers and data visualizations, the developer is not responsible for any data loss, technical errors, or decisions made based on the app’s output.',
+        privacyFooterLink: 'Privacy & Disclaimer',
 
         tipsMessage: 'Additional community tips and tricks online at LittleLanterns.info',
         goThereNow: 'Go There Now',
