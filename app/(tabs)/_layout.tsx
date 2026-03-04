@@ -6,7 +6,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import i18n from '../i18n';
 
-import { Modal, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
 
 const TabIcon = ({ source, focused }: { source: any; focused: boolean }) => (
     <View
@@ -32,7 +32,7 @@ const TabIcon = ({ source, focused }: { source: any; focused: boolean }) => (
 
 export default function TabLayout() {
     const colorScheme = useColorScheme();
-    const [modalVisible, setModalVisible] = React.useState(false);
+    const [modalVisible, setModalVisible] = React.useState(Platform.OS === 'web');
 
     return (
         <View style={{ flex: 1 }}>

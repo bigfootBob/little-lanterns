@@ -221,10 +221,10 @@ export default function ReviewScreen() {
                 <Text className="text-white text-lg font-bold mb-1 font-quicksand">Episode Heatmap</Text>
                 <Text className="text-gray-400 text-xs mb-4 font-quicksand">Distribution of episodes over 24 hours.</Text>
 
-                <View className="flex-row">
+                <View className="flex-row w-full">
                     {/* Y-Axis */}
-                    <View className="mr-2 mt-6">
-                        {days.map(d => <Text key={d} className="text-gray-500 text-[10px] h-6 font-quicksand">{d}</Text>)}
+                    <View className="mr-2 mt-6 justify-between" style={{ height: 7 * 16 + 6 * 4 }}>
+                        {days.map(d => <Text key={d} className="text-gray-500 text-[10px] h-4 font-quicksand">{d}</Text>)}
                     </View>
 
                     {/* Grid */}
@@ -235,7 +235,7 @@ export default function ReviewScreen() {
                         </View>
 
                         {heatmapData.grid.map((row, dayIdx) => (
-                            <View key={dayIdx} className="flex-row h-6 justify-between items-center mb-0">
+                            <View key={dayIdx} className="flex-row justify-between mb-1 w-full">
                                 {row.map((val, hourIdx) => {
                                     // Calculate opacity based on max value (ensure min opacity if > 0)
                                     const opacity = val === 0 ? 0.05 : Math.max(0.2, val / heatmapData.maxVal);
@@ -243,7 +243,7 @@ export default function ReviewScreen() {
                                         <View
                                             key={hourIdx}
                                             style={{
-                                                width: `${100 / 24}%`,
+                                                flex: 1, // Let it shrink to fit perfectly
                                                 height: 16,
                                                 backgroundColor: `rgba(243, 210, 117, ${opacity})`,
                                                 marginHorizontal: 1,
