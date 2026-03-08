@@ -5,11 +5,12 @@ import i18n from '../app/i18n';
 interface StatusModalProps {
     visible: boolean;
     type: 'success' | 'error';
+    title?: string;
     message?: string;
     onClose: () => void;
 }
 
-export default function StatusModal({ visible, type, message, onClose }: StatusModalProps) {
+export default function StatusModal({ visible, type, title, message, onClose }: StatusModalProps) {
     return (
         <Modal
             animationType="fade"
@@ -47,10 +48,10 @@ export default function StatusModal({ visible, type, message, onClose }: StatusM
                         />
                     </View>
                     <Text className="text-white text-xl font-bold mb-2 font-castoro text-center">
-                        {type === 'success' ? i18n.t('saveSuccessTitle') : i18n.t('saveErrorTitle')}
+                        {title ? title : (type === 'success' ? i18n.t('saveSuccessTitle') : i18n.t('saveErrorTitle'))}
                     </Text>
-                    {type === 'error' && message && (
-                        <Text className="text-red-400 text-base font-quicksand mb-4 text-center">
+                    {(type === 'error' || message) && (
+                        <Text className={`text-base font-quicksand mb-4 text-center ${type === 'error' ? 'text-red-400' : 'text-gray-300'}`}>
                             {message}
                         </Text>
                     )}

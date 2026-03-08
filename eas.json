@@ -1,0 +1,29 @@
+{
+    "cli": {
+        "version": ">= 10.0.0"
+    },
+    "build": {
+        "development": {
+            "developmentClient": true,
+            "distribution": "internal"
+        },
+        "preview": {
+            "distribution": "internal",
+            "android": {
+                "buildType": "apk"
+            },
+            "env": {
+                "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyBGf7K9kp9UYlOFtNCs8T0JHIGC2odyqDk",
+                "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "little-lanterns.firebaseapp.com",
+                "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "little-lanterns",
+                "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "little-lanterns.appspot.com",
+                "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "123456789",
+                "EXPO_PUBLIC_FIREBASE_APP_ID": "1:123456789:web:abcdef"
+            }
+        },
+        "production": {}
+    },
+    "submit": {
+        "production": {}
+    }
+}

@@ -1,9 +1,72 @@
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleAuthProvider, linkWithCredential } from 'firebase/auth';
+import { useState } from 'react';
 import { ImageBackground, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import StatusModal from '../../components/StatusModal';
+import { auth } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 export default function TipsScreen() {
     const insets = useSafeAreaInsets();
+
+    // Status Modal State
+    const [statusModalVisible, setStatusModalVisible] = useState(false);
+    const [statusModalType, setStatusModalType] = useState<'success' | 'error'>('success');
+    const [statusModalTitle, setStatusModalTitle] = useState('');
+    const [statusModalMessage, setStatusModalMessage] = useState('');
+    const [isLinking, setIsLinking] = useState(false);
+
+    // Check if user is already linked to Google
+    const isLinkedToGoogle = auth.currentUser?.providerData.some(
+        (provider) => provider.providerId === 'google.com'
+    ) ?? false;
+
+    const handleGoogleLink = async () => {
+        if (!auth.currentUser) return;
+        setIsLinking(true);
+        try {
+            await GoogleSignin.hasPlayServices();
+            const userInfo = await GoogleSignin.signIn();
+
+            if (userInfo.data?.idToken) {
+                const credential = GoogleAuthProvider.credential(userInfo.data.idToken);
+
+                try {
+                    await linkWithCredential(auth.currentUser, credential);
+                    setStatusModalType('success');
+                    setStatusModalTitle(i18n.t('backupSuccessTitle'));
+                    setStatusModalMessage(i18n.t('backupSuccessMessage'));
+                    setStatusModalVisible(true);
+                } catch (linkError: any) {
+                    if (linkError.code === 'auth/credential-already-in-use') {
+                        // User already has an account with this Google email. 
+                        // Discard the current anonymous account and log them into the existing one.
+                        await import('firebase/auth').then(async ({ signInWithCredential }) => {
+                            await signInWithCredential(auth, credential);
+                            setStatusModalType('success');
+                            setStatusModalTitle(i18n.t('restoreSuccessTitle'));
+                            setStatusModalMessage(i18n.t('restoreSuccessMessage'));
+                            setStatusModalVisible(true);
+                        });
+                    } else {
+                        throw linkError;
+                    }
+                }
+            } else {
+                throw new Error("No ID Token found");
+            }
+        } catch (error: any) {
+            console.error(error);
+            setStatusModalType('error');
+            setStatusModalTitle(i18n.t('backupErrorTitle'));
+            setStatusModalMessage(error.message);
+            setStatusModalVisible(true);
+        } finally {
+            setIsLinking(false);
+        }
+    };
+
     return (
         <ImageBackground
             source={require('../../assets/images/background.webp')}
@@ -16,12 +79,51 @@ export default function TipsScreen() {
                 </Text>
 
                 <TouchableOpacity
-                    className="bg-lantern-marine p-5 rounded-full w-[80%] items-center border-2 border-lantern-light"
+                    className="bg-lantern-marine p-5 rounded-full w-[80%] items-center border-2 border-lantern-light mb-12"
                     onPress={() => Linking.openURL('https://littlelanterns.info')}
                 >
                     <Text className="text-white text-xl font-bold">{i18n.t('goThereNow')}</Text>
                 </TouchableOpacity>
+
+                {/* Google Backup Section */}
+                {!isLinkedToGoogle ? (
+                    <View className="bg-[#1a1a1a]/80 p-6 rounded-3xl w-full border border-gray-700 items-center">
+                        <Text className="text-amber-500 text-lg font-bold mb-2 font-quicksand text-center">
+                            Secure Your Data
+                        </Text>
+                        <Text className="text-gray-300 text-sm mb-6 font-quicksand text-center leading-relaxed">
+                            Link a Google Account so your tracking history is preserved if you change phones or reinstall the app.
+                        </Text>
+                        <TouchableOpacity
+                            className={`p-4 rounded-full w-[80%] items-center ${isLinking ? 'bg-gray-600' : 'bg-white'}`}
+                            onPress={handleGoogleLink}
+                            disabled={isLinking}
+                        >
+                            <Text className={`font-bold text-lg font-quicksand ${isLinking ? 'text-gray-300' : 'text-black'}`}>
+                                {isLinking ? "Loading..." : i18n.t('backupToGoogle')}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <View className="bg-green-900/40 p-6 rounded-3xl w-full border border-green-700 items-center mt-4">
+                        <Text className="text-green-400 text-lg font-bold mb-2 font-quicksand text-center">
+                            Account Secured
+                        </Text>
+                        <Text className="text-green-200/80 text-sm font-quicksand text-center leading-relaxed">
+                            Your tracker data is safely backed up to your Google Account.
+                        </Text>
+                    </View>
+                )}
+
             </View>
+
+            <StatusModal
+                visible={statusModalVisible}
+                type={statusModalType}
+                title={statusModalTitle} // We can pass title if modified, else it fallbacks correctly
+                message={statusModalMessage}
+                onClose={() => setStatusModalVisible(false)}
+            />
         </ImageBackground>
     );
 }

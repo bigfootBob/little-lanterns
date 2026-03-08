@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Alert, ImageBackground, Keyboard, Modal, ScrollView, SectionList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
-import { db } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 // Helper to map frequency to time slots with better distribution
@@ -66,8 +66,12 @@ export default function DailyHealthScreen() {
     useEffect(() => {
         loadSettings();
 
-        // Real-time listener for health notes
-        const q = query(collection(db, "health_notes"), orderBy("timestamp", "desc"));
+        // Real-time listener for health notes for current user
+        const q = query(
+            collection(db, "health_notes"),
+            where("userId", "==", auth.currentUser?.uid),
+            orderBy("timestamp", "desc")
+        );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedNotes = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -206,6 +210,7 @@ export default function DailyHealthScreen() {
 
         try {
             await addDoc(collection(db, "health_notes"), {
+                userId: auth.currentUser?.uid,
                 note: note.trim(),
                 timestamp: serverTimestamp(),
             });

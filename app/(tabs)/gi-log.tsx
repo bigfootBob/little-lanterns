@@ -1,9 +1,10 @@
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ImageBackground, Modal, ScrollView, SectionList, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { ImageBackground, Modal, ScrollView, SectionList, Text, TouchableOpacity, View } from 'react-native';
+import ImageViewing from "react-native-image-viewing";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
-import { db } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 type StoolLog = {
@@ -31,8 +32,12 @@ export default function GILogScreen() {
     const [historyModalVisible, setHistoryModalVisible] = useState(false);
 
     useEffect(() => {
-        // Real-time listener for GI logs
-        const q = query(collection(db, "gi_logs"), orderBy("timestamp", "desc"));
+        // Real-time listener for GI logs for current user
+        const q = query(
+            collection(db, "gi_logs"),
+            where("userId", "==", auth.currentUser?.uid),
+            orderBy("timestamp", "desc")
+        );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedLogs: StoolLog[] = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -48,6 +53,7 @@ export default function GILogScreen() {
 
         try {
             await addDoc(collection(db, "gi_logs"), {
+                userId: auth.currentUser?.uid,
                 type: selectedType,
                 timestamp: serverTimestamp(),
             });
@@ -134,65 +140,69 @@ export default function GILogScreen() {
                     </Text>
 
                     {/* Logging Section */}
-                    <View className="bg-[#1a1a1a]/80 p-5 rounded-3xl mb-6">
-                        <Text className="text-amber-500 text-xl font-bold mb-4 text-center font-quicksand">
-                            {i18n.t('logStoolHeader')}
-                        </Text>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }} className="flex-1">
+                        <View className="bg-[#1a1a1a]/80 p-5 rounded-3xl mb-6">
+                            <Text className="text-amber-500 text-xl font-bold mb-4 text-center font-quicksand">
+                                {i18n.t('logStoolHeader')}
+                            </Text>
 
-                        <Text className="text-gray-300 mb-2 text-center font-quicksand">{i18n.t('stoolTypeLabel')}</Text>
+                            <Text className="text-gray-300 mb-2 text-center font-quicksand">{i18n.t('stoolTypeLabel')}</Text>
 
-                        <View className="flex-row justify-between items-center mb-2 px-2">
-                            <Text className="text-gray-400 text-xs italic font-quicksand">{i18n.t('scrollInstructions')}</Text>
-                            <TouchableOpacity onPress={() => setChartModalVisible(true)}>
-                                <Text className="text-lantern-light text-xs font-bold underline font-quicksand">{i18n.t('viewChart')}</Text>
+                            <View className="flex-row justify-between items-center mb-2 px-2">
+                                <Text className="text-gray-400 text-xs italic font-quicksand">{i18n.t('scrollInstructions')}</Text>
+                                <TouchableOpacity onPress={() => setChartModalVisible(true)}>
+                                    <Text className="text-lantern-light text-xs font-bold underline font-quicksand">{i18n.t('viewChart')}</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View className="mb-6">
+                                <View className="flex-row flex-wrap justify-center pb-2">
+                                    {BRISTOL_TYPES.map((type) => (
+                                        <TouchableOpacity
+                                            key={type}
+                                            onPress={() => setSelectedType(type)}
+                                            className={`p-4 rounded-2xl items-center justify-center w-[46%] m-1 aspect-square border-2 ${selectedType === type ? 'bg-amber-600 border-lantern-light' : 'bg-gray-800 border-lantern-light'}`}
+                                        >
+                                            <View className={`w-10 h-10 rounded-full ${getBristolColor(type)} items-center justify-center mb-2`}>
+                                                <Text className="text-black font-bold text-lg font-quicksand">{type}</Text>
+                                            </View>
+                                            <Text className="text-white text-[11px] text-center font-quicksand" numberOfLines={3}>
+                                                {i18n.t(`type${type}`)}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            {selectedType && (
+                                <View className="mb-6 bg-gray-800 p-4 rounded-xl border border-gray-700">
+                                    <Text className="text-amber-500 font-bold mb-1 font-quicksand text-lg">
+                                        {i18n.t(`type${selectedType}`)}
+                                    </Text>
+                                    <Text className="text-gray-300 font-quicksand">
+                                        {i18n.t(`type${selectedType}Description`)}
+                                    </Text>
+                                </View>
+                            )}
+
+                            <TouchableOpacity
+                                className={`p-4 rounded-full w-[80%] self-center items-center ${selectedType ? 'bg-[#00C851]' : 'bg-gray-700'} border-2 border-lantern-light`}
+                                onPress={handleSave}
+                                disabled={!selectedType}
+                            >
+                                <Text className={`text-xl font-bold font-quicksand ${selectedType ? 'text-white' : 'text-gray-400'}`}>
+                                    {i18n.t('saveLog')}
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={() => setHistoryModalVisible(true)}
+                                className="mt-4 self-center"
+                            >
+                                <Text className="text-lantern-light underline font-quicksand">{i18n.t('viewHistory')}</Text>
                             </TouchableOpacity>
                         </View>
-
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
-                            {BRISTOL_TYPES.map((type) => (
-                                <TouchableOpacity
-                                    key={type}
-                                    onPress={() => setSelectedType(type)}
-                                    className={`mr-3 p-4 rounded-2xl items-center justify-center w-32 h-32 border-2 ${selectedType === type ? 'bg-amber-600 border-lantern-light' : 'bg-gray-800 border-lantern-light'}`}
-                                >
-                                    <View className={`w-10 h-10 rounded-full ${getBristolColor(type)} items-center justify-center mb-2`}>
-                                        <Text className="text-black font-bold text-lg font-quicksand">{type}</Text>
-                                    </View>
-                                    <Text className="text-white text-xs text-center font-quicksand" numberOfLines={3}>
-                                        {i18n.t(`type${type}`)}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-
-                        {selectedType && (
-                            <View className="mb-6 bg-gray-800 p-4 rounded-xl border border-gray-700">
-                                <Text className="text-amber-500 font-bold mb-1 font-quicksand text-lg">
-                                    {i18n.t(`type${selectedType}`)}
-                                </Text>
-                                <Text className="text-gray-300 font-quicksand">
-                                    {i18n.t(`type${selectedType}Description`)}
-                                </Text>
-                            </View>
-                        )}
-
-                        <TouchableOpacity
-                            className={`p-4 rounded-full w-[80%] self-center items-center ${selectedType ? 'bg-[#00C851]' : 'bg-gray-700'} border-2 border-lantern-light`}
-                            onPress={handleSave}
-                            disabled={!selectedType}
-                        >
-                            <Text className={`text-xl font-bold font-quicksand ${selectedType ? 'text-white' : 'text-gray-400'}`}>
-                                {i18n.t('saveLog')}
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={() => setHistoryModalVisible(true)}
-                            className="mt-4 self-center"
-                        >
-                            <Text className="text-lantern-light underline font-quicksand">{i18n.t('viewHistory')}</Text>
-                        </TouchableOpacity>
-                    </View>
+                    </ScrollView>
                 </View>
 
                 {/* Status Modal */}
@@ -204,31 +214,13 @@ export default function GILogScreen() {
                 />
 
                 {/* Chart Modal */}
-                <Modal
-                    animationType="fade"
-                    transparent={true}
+                <ImageViewing
+                    images={[require('../../assets/images/bristol-chart.jpg')]}
+                    imageIndex={0}
                     visible={chartModalVisible}
                     onRequestClose={() => setChartModalVisible(false)}
-                >
-                    <TouchableWithoutFeedback onPress={() => setChartModalVisible(false)}>
-                        <View className="flex-1 bg-black/80 items-center justify-center p-5">
-                            <TouchableWithoutFeedback>
-                                <View className="bg-white p-2 rounded-xl w-full h-[80%] items-center justify-center">
-                                    <View className="flex-1 w-full bg-gray-200 items-center justify-center rounded-lg border-2 border-dashed border-gray-400">
-                                        {/* Placeholder for actual WebP chart */}
-                                        <Text className="text-gray-500 font-bold text-center">Bristol Stool Chart Image Placeholder</Text>
-                                    </View>
-                                    <TouchableOpacity
-                                        className="mt-4 bg-gray-800 py-3 px-8 rounded-full"
-                                        onPress={() => setChartModalVisible(false)}
-                                    >
-                                        <Text className="text-white font-bold font-quicksand">{i18n.t('close')}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </TouchableWithoutFeedback>
-                        </View>
-                    </TouchableWithoutFeedback>
-                </Modal>
+                    swipeToCloseEnabled={true}
+                />
 
                 {/* History Modal */}
                 <Modal

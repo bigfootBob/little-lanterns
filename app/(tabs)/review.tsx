@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Dimensions, ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { db } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 const screenWidth = Dimensions.get('window').width;
@@ -31,6 +31,7 @@ export default function ReviewScreen() {
     // Raw Data
     const [allEpisodes, setAllEpisodes] = useState<Episode[]>([]);
     const [allGILogs, setAllGILogs] = useState<GILog[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     const [detailModalVisible, setDetailModalVisible] = useState(false);
     const [selectedPoint, setSelectedPoint] = useState<any>(null);
@@ -50,18 +51,33 @@ export default function ReviewScreen() {
         const minDate = new Date(Math.min(thirtyDaysAgo.getTime(), ninetyDaysAgo.getTime(), startOfYear.getTime()));
 
         const unsubEpisodes = onSnapshot(
-            query(collection(db, "episodes"), where("timestamp", ">=", Timestamp.fromDate(minDate)), orderBy("timestamp", "asc")),
+            query(
+                collection(db, "episodes"),
+                where("userId", "==", auth.currentUser?.uid),
+                where("timestamp", ">=", Timestamp.fromDate(minDate)),
+                orderBy("timestamp", "asc")
+            ),
             (snapshot) => {
                 setAllEpisodes(snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data(),
                     timestamp: doc.data().timestamp.toDate(),
                 } as Episode)));
+                setIsLoading(false);
+            },
+            (error) => {
+                console.error("Error fetching episodes:", error);
+                setIsLoading(false);
             }
         );
 
         const unsubGI = onSnapshot(
-            query(collection(db, "gi_logs"), where("timestamp", ">=", Timestamp.fromDate(minDate)), orderBy("timestamp", "asc")),
+            query(
+                collection(db, "gi_logs"),
+                where("userId", "==", auth.currentUser?.uid),
+                where("timestamp", ">=", Timestamp.fromDate(minDate)),
+                orderBy("timestamp", "asc")
+            ),
             (snapshot) => {
                 setAllGILogs(snapshot.docs.map(doc => ({
                     id: doc.id,
@@ -293,9 +309,14 @@ export default function ReviewScreen() {
                     </View>
                 </View>
 
-                {allEpisodes.length === 0 ? (
+                {isLoading ? (
                     <View className="flex-1 justify-center items-center">
                         <Text className="text-gray-400 font-quicksand">Loading data...</Text>
+                    </View>
+                ) : allEpisodes.length === 0 && allGILogs.length === 0 ? (
+                    <View className="flex-1 justify-center items-center px-8">
+                        <Text className="text-white text-xl font-castoro mb-2">No Data Yet</Text>
+                        <Text className="text-gray-400 font-quicksand text-center">Track your first storm or GI event to see your patterns visualized here.</Text>
                     </View>
                 ) : (
                     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>

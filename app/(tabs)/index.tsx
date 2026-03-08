@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ImageBackground, Keyboard, Image as RNImage, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
-import { db } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 export default function App() {
@@ -57,25 +57,37 @@ export default function App() {
   };
 
   const handleSave = async () => {
+    // Capture state to save
+    const capturedSeconds = seconds;
+    const capturedNotes = notes;
+    const capturedCalmedBy = calmedBy;
+
+    // Optimistically reset UI instantly
     setReviewing(false);
+    setSeconds(0);
+    setNotes('');
+    setCalmedBy('seizure_stopped');
+
     try {
       await addDoc(collection(db, "episodes"), {
-        duration_seconds: seconds,
-        notes: notes,
-        calmed_by: calmedBy,
+        userId: auth.currentUser?.uid,
+        duration_seconds: capturedSeconds,
+        notes: capturedNotes,
+        calmed_by: capturedCalmedBy,
         variant: "LoF",
-
         timestamp: serverTimestamp(),
       });
       // Success Modal
       setStatusModalType('success');
       setStatusModalMessage(i18n.t('saveSuccessTitle'));
       setStatusModalVisible(true);
-
-      setSeconds(0);
-      setNotes('');
-      setCalmedBy('seizure_stopped');
     } catch (e: any) {
+      // Revert if failed
+      setSeconds(capturedSeconds);
+      setNotes(capturedNotes);
+      setCalmedBy(capturedCalmedBy);
+      setReviewing(true);
+
       // Error Modal
       setStatusModalType('error');
       setStatusModalMessage(e.message);

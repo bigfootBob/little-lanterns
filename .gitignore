@@ -42,3 +42,17 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Firebase config
+google-services.json
+GoogleService-Info.plist
+
+# Android Keystores
+*.keystore
+
+# IDE / Editor
+.idea/
+.vscode/
+
+# Broad environment file ignore (just to be safe)
+.env*

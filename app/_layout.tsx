@@ -8,8 +8,16 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Castoro_400Regular, Castoro_400Regular_Italic } from '@expo-google-fonts/castoro';
 import { Quicksand_300Light, Quicksand_400Regular, Quicksand_500Medium, Quicksand_600SemiBold, Quicksand_700Bold, useFonts } from '@expo-google-fonts/quicksand';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
+
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { signInAnonymously } from 'firebase/auth';
+import { auth } from '../firebaseConfig';
+
+GoogleSignin.configure({
+  webClientId: '551704278731-mcrfljd8ullhn3prljlqamhdm1g05132.apps.googleusercontent.com',
+});
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -30,13 +38,29 @@ export default function RootLayout() {
     Castoro_400Regular_Italic,
   });
 
+  const [authInitialized, setAuthInitialized] = useState(false);
+
   useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-    }
+    const initializeApp = async () => {
+      if (loaded || error) {
+        try {
+          if (!auth.currentUser) {
+            await signInAnonymously(auth);
+          }
+          setAuthInitialized(true);
+        } catch (e) {
+          console.error("Failed to authenticate anonymously:", e);
+          // Allow app to load anyway so it doesn't hard lock
+          setAuthInitialized(true);
+        }
+        SplashScreen.hideAsync();
+      }
+    };
+
+    initializeApp();
   }, [loaded, error]);
 
-  if (!loaded && !error) {
+  if ((!loaded && !error) || !authInitialized) {
     return null;
   }
 
