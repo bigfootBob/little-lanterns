@@ -1,4 +1,4 @@
-{
+module.exports = {
   "expo": {
     "name": "Little-Lanterns",
     "slug": "Little-Lanterns",
@@ -21,7 +21,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.bigfootbob.LittleLanterns",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": process.env.GOOGLE_SERVICES_JSON || "./google-services.json"
     },
     "web": {
       "output": "static",
