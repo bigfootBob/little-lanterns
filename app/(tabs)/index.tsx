@@ -1,11 +1,14 @@
 import * as Haptics from 'expo-haptics';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ImageBackground, Keyboard, Image as RNImage, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Dimensions, ImageBackground, Keyboard, Modal, Image as RNImage, ScrollView, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
+import { CALM_CATEGORIES, getCalmLabel } from '../../constants/calmCategories';
 import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
+
+const deviceHeight = Dimensions.get('window').height;
 
 export default function App() {
   const insets = useSafeAreaInsets();
@@ -21,16 +24,6 @@ export default function App() {
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [statusModalType, setStatusModalType] = useState<'success' | 'error'>('success');
   const [statusModalMessage, setStatusModalMessage] = useState('');
-
-  const calmOptions = [
-    { key: 'seizure_stopped', label: 'calmOptionSeizureStopped' },
-    { key: 'meds', label: 'calmOptionMeds' },
-    { key: 'time', label: 'calmOptionTime' },
-    { key: 'drink_food', label: 'calmOptionDrinkFood' },
-    { key: 'diaper', label: 'calmOptionDiaper' },
-    { key: 'comfort', label: 'calmOptionComfort' },
-    { key: 'other', label: 'calmOptionOther' },
-  ];
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -157,37 +150,54 @@ export default function App() {
                     onPress={() => setCalmModalVisible(true)}
                   >
                     <Text className={calmedBy ? "text-white text-lg" : "text-[#999] text-lg"}>
-                      {calmedBy ? i18n.t(calmOptions.find(o => o.key === calmedBy)?.label || 'selectCalmFactor') : i18n.t('calmedByLabel')}
+                      {calmedBy ? getCalmLabel(calmedBy, (key: string) => i18n.t(key)) : i18n.t('calmedByLabel')}
                     </Text>
                     <Text className="text-white">▼</Text>
                   </TouchableOpacity>
 
                   {/* Calm Selector Modal */}
-                  {calmModalVisible && (
-                    <View className="absolute top-0 left-0 right-0 bottom-0 justify-center items-center z-50">
-                      <View className="bg-[#1a3749] rounded-2xl w-[80%] p-4 border border-[#f3d275] shadow-lg">
+                  <Modal
+                    animationType="fade"
+                    transparent={true}
+                    visible={calmModalVisible}
+                    onRequestClose={() => setCalmModalVisible(false)}
+                  >
+                    <View className="flex-1 justify-center items-center bg-black/60 z-50">
+                      <View
+                        className="bg-[#1a3749] rounded-2xl w-[90%] p-4 border border-[#f3d275] shadow-lg"
+                        style={{ height: deviceHeight * 0.7 }}
+                      >
                         <Text className="text-white text-xl font-bold mb-4 text-center">{i18n.t('selectCalmFactor')}</Text>
-                        {calmOptions.map((option) => (
-                          <TouchableOpacity
-                            key={option.key}
-                            className="p-3 border-b border-[#ffffff20] w-full items-center"
-                            onPress={() => {
-                              setCalmedBy(option.key);
-                              setCalmModalVisible(false);
-                            }}
-                          >
-                            <Text className="text-white text-lg">{i18n.t(option.label)}</Text>
-                          </TouchableOpacity>
-                        ))}
+                        <ScrollView className="w-full flex-1 mb-2" showsVerticalScrollIndicator={true}>
+                          {CALM_CATEGORIES.map((cat) => (
+                            <View key={cat.title} className="w-full mb-4">
+                              <Text style={{ color: cat.color }} className="text-sm font-bold pl-2 pb-1">{cat.title}</Text>
+                              <View className="bg-black/20 rounded-xl overflow-hidden w-full border border-[#ffffff15]">
+                                {cat.options.map((option, idx) => (
+                                  <TouchableOpacity
+                                    key={option.key}
+                                    className={`p-3 border-[#ffffff20] w-full items-center ${idx !== cat.options.length - 1 ? 'border-b' : ''}`}
+                                    onPress={() => {
+                                      setCalmedBy(option.key);
+                                      setCalmModalVisible(false);
+                                    }}
+                                  >
+                                    <Text className="text-white text-base">{i18n.t(option.label)}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            </View>
+                          ))}
+                        </ScrollView>
                         <TouchableOpacity
-                          className="mt-4 p-3 bg-lantern-marine rounded-full items-center"
+                          className="mt-2 p-3 bg-lantern-marine rounded-full items-center"
                           onPress={() => setCalmModalVisible(false)}
                         >
                           <Text className="text-white font-bold">{i18n.t('close')}</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
-                  )}
+                  </Modal>
 
 
                   <TouchableOpacity

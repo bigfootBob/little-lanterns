@@ -1,8 +1,11 @@
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { collection, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
-import { Dimensions, ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { BarChart, LineChart } from 'react-native-gifted-charts';
+import { Alert, Dimensions, ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getCalmLabel, getCategoryForCalmKey } from '../../constants/calmCategories';
 import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
@@ -109,6 +112,64 @@ export default function ReviewScreen() {
             filterStartDate: startDate
         };
     }, [allEpisodes, allGILogs, selectedFilter]);
+
+    // Export to CSV
+    const exportToCSV = async () => {
+        if (allEpisodes.length === 0 && allGILogs.length === 0) {
+            Alert.alert(i18n.t('exportNoData'));
+            return;
+        }
+
+        try {
+            // CSV Header
+            let csvContent = "Type,Date,Time,Duration (Minutes),Bristol/GI Type,Calmed By,Notes\n";
+
+            // Map Episodes (Storms)
+            allEpisodes.forEach(ep => {
+                const dateStr = ep.timestamp.toLocaleDateString();
+                const timeStr = ep.timestamp.toLocaleTimeString();
+                const durationMins = (ep.duration_seconds / 60).toFixed(2);
+
+                // Escape notes/calmedBy for CSV (quotes)
+                const safeNotes = ep.notes ? `"${ep.notes.replace(/"/g, '""')}"` : "";
+                const safeCalm = ep.calmed_by ? `"${ep.calmed_by}"` : "";
+
+                csvContent += `Storm,${dateStr},${timeStr},${durationMins},,${safeCalm},${safeNotes}\n`;
+            });
+
+            // Map GI Logs
+            allGILogs.forEach(gi => {
+                const dateStr = gi.timestamp.toLocaleDateString();
+                const timeStr = gi.timestamp.toLocaleTimeString();
+
+                csvContent += `GI Log,${dateStr},${timeStr},,${gi.type},,\n`;
+            });
+
+            // Generate File
+            const fileName = `LittleLanterns_Export_${Date.now()}.csv`;
+            const filePath = `${FileSystem.documentDirectory}${fileName}`;
+
+            await FileSystem.writeAsStringAsync(filePath, csvContent, {
+                encoding: FileSystem.EncodingType.UTF8
+            });
+
+            // Share File
+            const isAvailable = await Sharing.isAvailableAsync();
+            if (isAvailable) {
+                await Sharing.shareAsync(filePath, {
+                    dialogTitle: 'Export Little Lanterns Data',
+                    mimeType: 'text/csv',
+                    UTI: 'public.comma-separated-values-text'
+                });
+            } else {
+                Alert.alert("Sharing is not available on this platform.");
+            }
+
+        } catch (error) {
+            console.error("CSV Export Error:", error);
+            Alert.alert(i18n.t('exportError'));
+        }
+    };
 
 
     // 2. HEATMAP DATA PREP (24 Grid)
@@ -227,6 +288,40 @@ export default function ReviewScreen() {
         return { stackedBarData: stackedResult, lineChartData: freqLine, lineChartData2: durLine };
     }, [filteredEpisodes, filteredGI, selectedFilter, filterStartDate]);
 
+    const pieChartData = useMemo(() => {
+        const counts: Record<string, number> = {};
+        const colorMap: Record<string, string> = {};
+        let total = 0;
+
+        filteredEpisodes.forEach(ep => {
+            if (!ep.calmed_by) return;
+            const label = getCalmLabel(ep.calmed_by, (key: string) => i18n.t(key));
+            const category = getCategoryForCalmKey(ep.calmed_by);
+
+            if (!counts[label]) {
+                counts[label] = 0;
+                colorMap[label] = category.color; // Map the specific label to its parent category color
+            }
+
+            counts[label]++;
+            total++;
+        });
+
+        const result = [];
+        for (const [label, count] of Object.entries(counts)) {
+            const percentage = Math.round((count / total) * 100);
+            result.push({
+                value: count,
+                color: colorMap[label],
+                text: `${percentage}%`,
+                title: label
+            });
+        }
+
+        // Sort by largest segments first
+        return result.sort((a, b) => b.value - a.value);
+    }, [filteredEpisodes]);
+
 
     const renderHeatmap = () => {
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -307,6 +402,13 @@ export default function ReviewScreen() {
                             </TouchableOpacity>
                         ))}
                     </View>
+
+                    <TouchableOpacity
+                        className="mt-3 bg-gray-800 py-2 px-4 rounded-lg self-end border border-gray-600"
+                        onPress={exportToCSV}
+                    >
+                        <Text className="text-white text-sm font-bold font-quicksand">↓ {i18n.t('exportData')}</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {isLoading ? (
@@ -319,7 +421,7 @@ export default function ReviewScreen() {
                         <Text className="text-gray-400 font-quicksand text-center">Track your first storm or GI event to see your patterns visualized here.</Text>
                     </View>
                 ) : (
-                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 160 }}>
 
                         {/* 1. Heatmap View */}
                         {renderHeatmap()}
@@ -377,6 +479,39 @@ export default function ReviewScreen() {
                                     isAnimated
                                 />
                             </View>
+                        </View>
+
+                        {/* 4. Effective Interventions Pie Chart */}
+                        <View className="bg-[#1a1a1a] p-4 rounded-xl border border-gray-700 w-full mb-8">
+                            <Text className="text-white text-lg font-bold mb-1 font-quicksand">Effective Interventions</Text>
+                            <Text className="text-gray-400 text-xs mb-6 font-quicksand">What successfully resolved the storm?</Text>
+
+                            {pieChartData.length > 0 ? (
+                                <View className="items-center w-full">
+                                    <PieChart
+                                        data={pieChartData}
+                                        donut
+                                        sectionAutoFocus
+                                        radius={100}
+                                        innerRadius={60}
+                                        innerCircleColor="#1a1a1a"
+                                        textColor="white"
+                                        textSize={10}
+                                        showText
+                                        textBackgroundRadius={12}
+                                    />
+                                    <View className="w-full mt-6">
+                                        {pieChartData.map((item, index) => (
+                                            <View key={index} className="flex-row items-center mb-2">
+                                                <View className="w-4 h-4 rounded-full mr-3" style={{ backgroundColor: item.color }} />
+                                                <Text className="text-white text-sm font-quicksand">{item.title} ({item.value})</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            ) : (
+                                <Text className="text-gray-500 font-quicksand text-center py-4">No intervention data saved yet.</Text>
+                            )}
                         </View>
 
                     </ScrollView>

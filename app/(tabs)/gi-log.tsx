@@ -1,11 +1,13 @@
 import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ImageBackground, Modal, ScrollView, SectionList, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, ImageBackground, Modal, ScrollView, SectionList, Text, TouchableOpacity, View } from 'react-native';
 import ImageViewing from "react-native-image-viewing";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
 import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
+
+const { width: screenWidth, height: deviceHeight } = Dimensions.get('window');
 
 type StoolLog = {
     id: string;
@@ -220,6 +222,35 @@ export default function GILogScreen() {
                     visible={chartModalVisible}
                     onRequestClose={() => setChartModalVisible(false)}
                     swipeToCloseEnabled={true}
+                    HeaderComponent={() => {
+                        // Calculate the actual size the image will be rendered at (it scales to fit width)
+                        const imageAspect = 768 / 429;
+                        const renderedHeight = screenWidth * imageAspect;
+
+                        // The ImageViewer centers the image vertically.
+                        // So the top edge of the image starts halfway down the remaining screen space.
+                        const topEdgeOffset = (deviceHeight - renderedHeight) / 2;
+
+                        // The user requested the button to be 126px down from the top of the original 768px image.
+                        // We divide 126 by 768 to get the exact percentage, and multiply by the scaled screen height!
+                        const targetOffsetWithinImage = renderedHeight * (126 / 768);
+
+                        const dynamicTop = topEdgeOffset + targetOffsetWithinImage;
+
+                        return (
+                            <View
+                                className="absolute w-full items-center z-50"
+                                style={{ top: dynamicTop }}
+                            >
+                                <TouchableOpacity
+                                    onPress={() => setChartModalVisible(false)}
+                                    className="bg-[#1a3749]/90 px-8 py-3 rounded-full border border-lantern-light/50"
+                                >
+                                    <Text className="text-lantern-light font-bold tracking-widest text-lg font-quicksand">CLOSE</Text>
+                                </TouchableOpacity>
+                            </View>
+                        );
+                    }}
                 />
 
                 {/* History Modal */}

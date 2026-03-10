@@ -1,10 +1,11 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, linkWithCredential } from 'firebase/auth';
+import { collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { useState } from 'react';
-import { ImageBackground, Linking, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ImageBackground, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
-import { auth } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 export default function TipsScreen() {
@@ -67,6 +68,53 @@ export default function TipsScreen() {
         }
     };
 
+    const handleClearData = () => {
+        Alert.alert(
+            i18n.t('clearDataTitle'),
+            i18n.t('clearDataMessage'),
+            [
+                { text: i18n.t('clearDataCancel'), style: 'cancel' },
+                {
+                    text: i18n.t('confirmClear'),
+                    style: 'destructive',
+                    onPress: async () => {
+                        if (!auth.currentUser) return;
+                        setIsLinking(true);
+                        try {
+                            const uid = auth.currentUser.uid;
+                            const batch = writeBatch(db);
+
+                            const collectionsToClear = ['episodes', 'gi_logs', 'health_notes'];
+
+                            for (const coll of collectionsToClear) {
+                                const q = query(collection(db, coll), where('userId', '==', uid));
+                                const snapshot = await getDocs(q);
+                                snapshot.forEach((doc) => {
+                                    batch.delete(doc.ref);
+                                });
+                            }
+
+                            await batch.commit();
+
+                            setStatusModalType('success');
+                            setStatusModalTitle(i18n.t('clearSuccessTitle'));
+                            setStatusModalMessage(i18n.t('clearSuccessMessage'));
+                            setStatusModalVisible(true);
+                        } catch (error: any) {
+                            console.error('Error clearing data:', error);
+                            setStatusModalType('error');
+                            setStatusModalTitle(i18n.t('clearErrorTitle'));
+                            setStatusModalMessage(error.message);
+                            setStatusModalVisible(true);
+                        } finally {
+                            setIsLinking(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <ImageBackground
             source={require('../../assets/images/background.webp')}
@@ -105,13 +153,25 @@ export default function TipsScreen() {
                         </TouchableOpacity>
                     </View>
                 ) : (
-                    <View className="bg-green-900/40 p-6 rounded-3xl w-full border border-green-700 items-center mt-4">
-                        <Text className="text-green-400 text-lg font-bold mb-2 font-quicksand text-center">
-                            Account Secured
-                        </Text>
-                        <Text className="text-green-200/80 text-sm font-quicksand text-center leading-relaxed">
-                            Your tracker data is safely backed up to your Google Account.
-                        </Text>
+                    <View className="w-full">
+                        <View className="bg-green-900/40 p-6 rounded-3xl w-full border border-green-700 items-center mt-4">
+                            <Text className="text-green-400 text-lg font-bold mb-2 font-quicksand text-center">
+                                Account Secured
+                            </Text>
+                            <Text className="text-green-200/80 text-sm font-quicksand text-center leading-relaxed">
+                                Your tracker data is safely backed up to your Google Account.
+                            </Text>
+                        </View>
+
+                        <TouchableOpacity
+                            className="mt-8 border border-red-900/50 bg-red-950/30 p-4 rounded-xl items-center w-[80%] self-center"
+                            onPress={handleClearData}
+                            disabled={isLinking}
+                        >
+                            <Text className="text-red-500 font-bold font-quicksand text-center">
+                                {isLinking ? "Processing..." : i18n.t('clearDataTitle')}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                 )}
 

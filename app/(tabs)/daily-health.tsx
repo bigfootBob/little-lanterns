@@ -152,7 +152,11 @@ export default function DailyHealthScreen() {
         }
     };
 
-    const toggleDose = (index: number) => {
+    const toggleDose = async (index: number) => {
+        const isCurrentlyGiven = dosesGiven.has(index);
+        const slotKey = timeSlots[index];
+        const slotLabel = i18n.t(slotKey);
+
         setDosesGiven(prev => {
             const newSet = new Set(prev);
             if (newSet.has(index)) {
@@ -164,6 +168,17 @@ export default function DailyHealthScreen() {
             saveDailyProgress(newSet);
             return newSet;
         });
+
+        // Log this action securely into the Firestore Note History
+        try {
+            await addDoc(collection(db, "health_notes"), {
+                userId: auth.currentUser?.uid,
+                note: `Medication ${!isCurrentlyGiven ? 'Given: ' : 'Unchecked: '} ${slotLabel}`,
+                timestamp: serverTimestamp(),
+            });
+        } catch (e) {
+            console.error('Failed to log medication note', e);
+        }
     };
 
     const handleTimeChange = (event: any, selectedDate?: Date) => {
@@ -240,7 +255,13 @@ export default function DailyHealthScreen() {
     const groupNotesByWeek = (notes: any[]) => {
         const groups: { [key: string]: any[] } = {};
         notes.forEach(note => {
-            const date = note.timestamp ? new Date(note.timestamp.seconds * 1000) : new Date();
+            let date = new Date();
+            if (note.timestamp && note.timestamp.seconds) {
+                date = new Date(note.timestamp.seconds * 1000);
+            } else if (note.timestamp && typeof note.timestamp.toMillis === 'function') {
+                date = new Date(note.timestamp.toMillis());
+            }
+
             const weekStart = getWeekStartDate(date);
             const key = weekStart.toDateString(); // Unique key for the week
             if (!groups[key]) groups[key] = [];
@@ -259,7 +280,13 @@ export default function DailyHealthScreen() {
     const groupedNotes = groupNotesByWeek(notesHistory);
 
     const renderNoteItem = ({ item }: { item: any }) => {
-        const date = item.timestamp ? new Date(item.timestamp.seconds * 1000) : new Date();
+        let date = new Date();
+        if (item.timestamp && item.timestamp.seconds) {
+            date = new Date(item.timestamp.seconds * 1000);
+        } else if (item.timestamp && typeof item.timestamp.toMillis === 'function') {
+            date = new Date(item.timestamp.toMillis());
+        }
+
         return (
             <View className="bg-[#2a2a2a] p-4 rounded-xl mb-3">
                 <Text className="text-white font-quicksand text-base mb-1">{item.note}</Text>
