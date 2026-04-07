@@ -1,10 +1,11 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, linkWithCredential } from 'firebase/auth';
-import { collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { useState } from 'react';
 import { Alert, ImageBackground, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
+import { CALM_CATEGORIES } from '../../constants/calmCategories';
 import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
@@ -115,6 +116,86 @@ export default function TipsScreen() {
         );
     };
 
+    const handleSeedData = async () => {
+        if (!auth.currentUser) return;
+        setIsLinking(true);
+        setStatusModalMessage('Generating 90 days of sample data...');
+        setStatusModalTitle('Seeding Data');
+        setStatusModalType('success');
+        setStatusModalVisible(true);
+
+        try {
+            const uid = auth.currentUser.uid;
+            const batch = writeBatch(db);
+
+            // Helpers for random generation
+            const now = new Date();
+            const ninetyDaysAgo = new Date(now);
+            ninetyDaysAgo.setDate(now.getDate() - 90);
+
+            const getRandomDate = () => {
+                const date = new Date(ninetyDaysAgo.getTime() + Math.random() * (now.getTime() - ninetyDaysAgo.getTime()));
+                return Timestamp.fromDate(date);
+            };
+
+            const getRandomItem = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+            
+            // Extract calm keys from CALM_CATEGORIES
+            const calmKeys = CALM_CATEGORIES.flatMap(cat => cat.options.map(opt => opt.key));
+
+            // Generate ~30 Episodes
+            const numEpisodes = 30 + Math.floor(Math.random() * 10);
+            for (let i = 0; i < numEpisodes; i++) {
+                const epRef = collection(db, 'episodes');
+                batch.set(doc(epRef), {
+                    userId: uid,
+                    duration_seconds: Math.floor(Math.random() * (45 * 60)) + 60, // 1 to 45 mins
+                    calmed_by: Math.random() > 0.3 ? getRandomItem(calmKeys) : null, // 70% chance of calm factor
+                    notes: Math.random() > 0.5 ? 'Sample generated note.' : '',
+                    variant: 'LoF',
+                    timestamp: getRandomDate()
+                });
+            }
+
+            // Generate ~20 GI Logs
+            const numGILogs = 20 + Math.floor(Math.random() * 10);
+            for (let i = 0; i < numGILogs; i++) {
+                const giRef = collection(db, 'gi_logs');
+                batch.set(doc(giRef), {
+                    userId: uid,
+                    type: Math.floor(Math.random() * 7) + 1, // 1-7
+                    notes: Math.random() > 0.7 ? 'Sample GI Note' : '',
+                    timestamp: getRandomDate()
+                });
+            }
+
+            // Generate ~15 Health Notes
+            const numNotes = 15 + Math.floor(Math.random() * 5);
+            for (let i = 0; i < numNotes; i++) {
+                const notesRef = collection(db, 'health_notes');
+                batch.set(doc(notesRef), {
+                    userId: uid,
+                    note: 'Routine generated sample note.',
+                    timestamp: getRandomDate()
+                });
+            }
+
+            await batch.commit();
+
+            setStatusModalTitle('Success');
+            setStatusModalMessage('Sample data successfully seeded!');
+        } catch (error: any) {
+            console.error('Error seeding data:', error);
+            setStatusModalType('error');
+            setStatusModalTitle('Seeding Failed');
+            setStatusModalMessage(error.message);
+        } finally {
+            setIsLinking(false);
+            // Hide modal after a few seconds
+            setTimeout(() => setStatusModalVisible(false), 2000);
+        }
+    };
+
     return (
         <ImageBackground
             source={require('../../assets/images/background.webp')}
@@ -173,6 +254,19 @@ export default function TipsScreen() {
                             </Text>
                         </TouchableOpacity>
                     </View>
+                )}
+
+                {/* DEV ONLY: Seed Data */}
+                {__DEV__ && (
+                    <TouchableOpacity
+                        className="mt-12 bg-gray-800 p-4 rounded-xl items-center w-[80%] border border-gray-600 self-center"
+                        onPress={handleSeedData}
+                        disabled={isLinking}
+                    >
+                        <Text className="text-gray-300 font-bold font-quicksand">
+                            {isLinking ? "Generating..." : "🛠️ Seed Sample Data"}
+                        </Text>
+                    </TouchableOpacity>
                 )}
 
             </View>
