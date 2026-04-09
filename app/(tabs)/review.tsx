@@ -6,6 +6,7 @@ import { Alert, Dimensions, ImageBackground, ScrollView, Text, TouchableOpacity,
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCalmLabel, getCategoryForCalmKey } from '../../constants/calmCategories';
+import { useChild } from '../../hooks/use-child';
 import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
@@ -29,6 +30,7 @@ type GILog = {
 
 export default function ReviewScreen() {
     const insets = useSafeAreaInsets();
+    const { childId } = useChild();
     const [selectedFilter, setSelectedFilter] = useState<FilterType>('30');
 
     // Raw Data
@@ -53,10 +55,12 @@ export default function ReviewScreen() {
         // Find the absolute oldest date we need to fetch
         const minDate = new Date(Math.min(thirtyDaysAgo.getTime(), ninetyDaysAgo.getTime(), startOfYear.getTime()));
 
+        if (!childId) return;
+
         const unsubEpisodes = onSnapshot(
             query(
                 collection(db, "episodes"),
-                where("userId", "==", auth.currentUser?.uid),
+                where("childId", "==", childId),
                 where("timestamp", ">=", Timestamp.fromDate(minDate)),
                 orderBy("timestamp", "asc")
             ),
@@ -77,7 +81,7 @@ export default function ReviewScreen() {
         const unsubGI = onSnapshot(
             query(
                 collection(db, "gi_logs"),
-                where("userId", "==", auth.currentUser?.uid),
+                where("childId", "==", childId),
                 where("timestamp", ">=", Timestamp.fromDate(minDate)),
                 orderBy("timestamp", "asc")
             ),
@@ -94,7 +98,7 @@ export default function ReviewScreen() {
             unsubEpisodes();
             unsubGI();
         };
-    }, []);
+    }, [childId]);
 
     // 1. FILTERING
     const { filteredEpisodes, filteredGI, filterStartDate } = useMemo(() => {

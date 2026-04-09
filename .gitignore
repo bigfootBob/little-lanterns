@@ -47,6 +47,9 @@ app-example
 google-services.json
 GoogleService-Info.plist
 
+# EAS build config (contains secrets)
+eas.json
+
 # Android Keystores
 *.keystore
 

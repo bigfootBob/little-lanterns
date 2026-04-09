@@ -1,10 +1,12 @@
 import * as Haptics from 'expo-haptics';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
-import { Dimensions, ImageBackground, Keyboard, Modal, Image as RNImage, ScrollView, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Dimensions, ImageBackground, Keyboard, Modal, Image as RNImage, ScrollView, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Svg, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
 import { CALM_CATEGORIES, getCalmLabel } from '../../constants/calmCategories';
+import { useChild } from '../../hooks/use-child';
 import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
@@ -12,7 +14,11 @@ const deviceHeight = Dimensions.get('window').height;
 
 export default function App() {
   const insets = useSafeAreaInsets();
+  const { childId, childName } = useChild();
   const [active, setActive] = useState(false);
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const waveAnim = useRef(new Animated.Value(0)).current;
+  const screenWidth = Dimensions.get('window').width;
   const [seconds, setSeconds] = useState(0);
   // const [showerUsed, setShowerUsed] = useState(false); // Removed
   const [notes, setNotes] = useState('');
@@ -28,9 +34,25 @@ export default function App() {
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     if (active) {
-      interval = setInterval(() => setSeconds((s) => s + 1), 1000);
-    } else if (interval) {
-      clearInterval(interval);
+      interval = setInterval(() => {
+        setSeconds((s) => s + 1);
+        Animated.sequence([
+          Animated.timing(glowAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 0, duration: 420, useNativeDriver: true }),
+        ]).start();
+      }, 1000);
+
+      // Continuous wave scroll loop
+      waveAnim.setValue(0);
+      Animated.loop(
+        Animated.timing(waveAnim, { toValue: 1, duration: 2400, useNativeDriver: true })
+      ).start();
+    } else {
+      glowAnim.stopAnimation();
+      glowAnim.setValue(0);
+      waveAnim.stopAnimation();
+      waveAnim.setValue(0);
+      if (interval) clearInterval(interval);
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -63,7 +85,8 @@ export default function App() {
 
     try {
       await addDoc(collection(db, "episodes"), {
-        userId: auth.currentUser?.uid,
+        childId,
+        addedBy: auth.currentUser?.uid,
         duration_seconds: capturedSeconds,
         notes: capturedNotes,
         calmed_by: capturedCalmedBy,
@@ -97,7 +120,7 @@ export default function App() {
     >
       <View className="flex-1 bg-black/60" style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View className="flex-1 justify-between p-5 pt-12">
+          <View className="flex-1 p-5 pt-12">
             {/* Header Section */}
             <View className="items-center w-full">
               <RNImage
@@ -108,14 +131,66 @@ export default function App() {
               <Text className="text-white text-3xl mb-0 tracking-widest text-center font-castoro">
                 {i18n.t('appTitle')}
               </Text>
-              <Text className="text-white text-sm -mt-2 mb-8 tracking-widest text-center font-castoro-italic opacity-90">
+              <Text className="text-white text-sm -mt-2 tracking-widest text-center font-castoro-italic opacity-90">
                 {i18n.t('appSubtitle')}
               </Text>
+              {childName ? (
+                <Text className="text-lantern-light/80 text-xs font-quicksand mt-1 tracking-wide">
+                  Tracking for <Text className="text-lantern-light font-bold">{childName}</Text>
+                </Text>
+              ) : null}
             </View>
 
-            {/* Main Content Section */}
-            <View className="items-center w-full mb-48">
-              <Text className="text-white text-8xl font-bold mb-10">{seconds}s</Text>
+            {/* Main Content Section — centered in remaining space */}
+            <View className="flex-1 items-center justify-center" style={{ marginBottom: 120 }}>
+
+              {/* Scrolling wave + solid fill to bottom — visible only while active */}
+              {active && (
+                <View style={{ position: 'absolute', bottom: -120, width: screenWidth, height: deviceHeight * 0.38, overflow: 'hidden' }}>
+                  {/* Wave crest */}
+                  <Animated.View style={{
+                    flexDirection: 'row',
+                    transform: [{
+                      translateX: waveAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, -screenWidth],
+                      }),
+                    }],
+                  }}>
+                    {[0, 1].map(i => (
+                      <Svg key={i} width={screenWidth} height={160} viewBox="0 0 1440 160" preserveAspectRatio="none">
+                        <Path
+                          d="M0,80L48,90.7C96,101,192,123,288,117.3C384,112,480,80,576,64C672,48,768,48,864,58.7C960,69,1056,91,1152,96C1248,101,1344,91,1392,85.3L1440,80L1440,160L0,160Z"
+                          fill="rgba(0,153,255,0.22)"
+                        />
+                        <Path
+                          d="M0,112L48,101.3C96,91,192,69,288,69.3C384,69,480,91,576,106.7C672,123,768,123,864,112C960,101,1056,80,1152,74.7C1248,69,1344,80,1392,85.3L1440,91L1440,160L0,160Z"
+                          fill="rgba(0,153,255,0.12)"
+                        />
+                      </Svg>
+                    ))}
+                  </Animated.View>
+                  {/* Solid fill below the wave */}
+                  <View style={{ width: screenWidth, flex: 1, backgroundColor: 'rgba(0,153,255,0.22)' }} />
+                </View>
+              )}
+
+              <Animated.Text
+                style={{
+                  transform: [{
+                    scale: glowAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.12],
+                    }),
+                  }],
+                  color: 'white',
+                  fontSize: 96,
+                  fontWeight: 'bold',
+                  marginBottom: 40,
+                }}
+              >
+                {seconds}s
+              </Animated.Text>
 
               {!active && !reviewing ? (
                 <TouchableOpacity

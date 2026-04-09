@@ -4,6 +4,7 @@ import { Dimensions, ImageBackground, Modal, ScrollView, SectionList, Text, Touc
 import ImageViewing from "react-native-image-viewing";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
+import { useChild } from '../../hooks/use-child';
 import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
@@ -19,6 +20,7 @@ const BRISTOL_TYPES = [1, 2, 3, 4, 5, 6, 7];
 
 export default function GILogScreen() {
     const insets = useSafeAreaInsets();
+    const { childId } = useChild();
     const [selectedType, setSelectedType] = useState<number | null>(null);
     const [logs, setLogs] = useState<StoolLog[]>([]);
 
@@ -34,10 +36,10 @@ export default function GILogScreen() {
     const [historyModalVisible, setHistoryModalVisible] = useState(false);
 
     useEffect(() => {
-        // Real-time listener for GI logs for current user
+        if (!childId) return;
         const q = query(
             collection(db, "gi_logs"),
-            where("userId", "==", auth.currentUser?.uid),
+            where("childId", "==", childId),
             orderBy("timestamp", "desc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -48,14 +50,15 @@ export default function GILogScreen() {
             setLogs(fetchedLogs);
         });
         return () => unsubscribe();
-    }, []);
+    }, [childId]);
 
     const handleSave = async () => {
         if (!selectedType) return;
 
         try {
             await addDoc(collection(db, "gi_logs"), {
-                userId: auth.currentUser?.uid,
+                childId,
+                addedBy: auth.currentUser?.uid,
                 type: selectedType,
                 timestamp: serverTimestamp(),
             });

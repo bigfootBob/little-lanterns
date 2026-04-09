@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
 import { Image as RNImage } from 'react-native';
 
@@ -7,7 +7,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import i18n from '../i18n';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { signInAnonymously } from 'firebase/auth';
 import { Modal, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { auth } from '../../firebaseConfig';
 
 const TabIcon = ({ source, focused }: { source: any; focused: boolean }) => (
     <View
@@ -33,8 +36,24 @@ const TabIcon = ({ source, focused }: { source: any; focused: boolean }) => (
 
 export default function TabLayout() {
     const colorScheme = useColorScheme();
+    const router = useRouter();
     const [modalVisible, setModalVisible] = React.useState(Platform.OS === 'web');
     const [privacyModalVisible, setPrivacyModalVisible] = React.useState(false);
+
+    const isLinkedToGoogle = auth.currentUser?.providerData.some(
+        (p) => p.providerId === 'google.com'
+    ) ?? false;
+
+    const handleLogout = async () => {
+        try {
+            await GoogleSignin.signOut();
+            await signInAnonymously(auth);
+            await AsyncStorage.removeItem('@child_id');
+            router.replace('/child-setup' as any);
+        } catch (e) {
+            console.error('Logout failed:', e);
+        }
+    };
 
     React.useEffect(() => {
         const checkPrivacyStatus = async () => {
@@ -117,6 +136,12 @@ export default function TabLayout() {
 
             {/* Footer Links */}
             <View className="absolute bottom-[60px] w-full flex-row justify-center items-center">
+                <TouchableOpacity onPress={isLinkedToGoogle ? handleLogout : () => router.push('/(tabs)/tips')}>
+                    <Text className="text-white/80 font-quicksand underline text-sm">
+                        {isLinkedToGoogle ? 'Logout' : 'Login'}
+                    </Text>
+                </TouchableOpacity>
+                <Text className="text-white/50 mx-3">|</Text>
                 <TouchableOpacity onPress={() => setModalVisible(true)}>
                     <Text className="text-white/80 font-quicksand underline text-sm">{i18n.t('howToUse')}</Text>
                 </TouchableOpacity>

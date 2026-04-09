@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, ImageBackground, Keyboard, Modal, ScrollView, SectionList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
+import { useChild } from '../../hooks/use-child';
 import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
@@ -41,6 +42,7 @@ const getSlotLabel = (date: Date) => {
 
 export default function DailyHealthScreen() {
     const insets = useSafeAreaInsets();
+    const { childId } = useChild();
     const [medFrequency, setMedFrequency] = useState(0);
     const [isSetup, setIsSetup] = useState(false);
     // Track which doses are given. Key is the index of the dose.
@@ -69,7 +71,7 @@ export default function DailyHealthScreen() {
         // Real-time listener for health notes for current user
         const q = query(
             collection(db, "health_notes"),
-            where("userId", "==", auth.currentUser?.uid),
+            where("childId", "==", childId),
             orderBy("timestamp", "desc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -80,7 +82,7 @@ export default function DailyHealthScreen() {
             setNotesHistory(fetchedNotes);
         });
         return () => unsubscribe();
-    }, []);
+    }, [childId]);
 
     const loadSettings = async () => {
         try {
@@ -170,9 +172,11 @@ export default function DailyHealthScreen() {
         });
 
         // Log this action securely into the Firestore Note History
+        if (!childId || !auth.currentUser) return;
         try {
             await addDoc(collection(db, "health_notes"), {
-                userId: auth.currentUser?.uid,
+                childId,
+                addedBy: auth.currentUser.uid,
                 note: `Medication ${!isCurrentlyGiven ? 'Given: ' : 'Unchecked: '} ${slotLabel}`,
                 timestamp: serverTimestamp(),
             });
@@ -225,7 +229,8 @@ export default function DailyHealthScreen() {
 
         try {
             await addDoc(collection(db, "health_notes"), {
-                userId: auth.currentUser?.uid,
+                childId,
+                addedBy: auth.currentUser?.uid,
                 note: note.trim(),
                 timestamp: serverTimestamp(),
             });

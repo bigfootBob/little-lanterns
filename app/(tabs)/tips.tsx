@@ -2,15 +2,21 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, linkWithCredential } from 'firebase/auth';
 import { collection, doc, getDocs, query, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { useState } from 'react';
-import { Alert, ImageBackground, Linking, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ImageBackground, Linking, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
 import { CALM_CATEGORIES } from '../../constants/calmCategories';
+import { useChild } from '../../hooks/use-child';
 import { auth, db } from '../../firebaseConfig';
 import i18n from '../i18n';
 
 export default function TipsScreen() {
     const insets = useSafeAreaInsets();
+    const { childId, childName, inviteCode } = useChild();
+    const handleCopyCode = async () => {
+        if (!inviteCode) return;
+        await Share.share({ message: `Join me on Little Lanterns! Use invite code: ${inviteCode}` });
+    };
 
     // Status Modal State
     const [statusModalVisible, setStatusModalVisible] = useState(false);
@@ -82,13 +88,12 @@ export default function TipsScreen() {
                         if (!auth.currentUser) return;
                         setIsLinking(true);
                         try {
-                            const uid = auth.currentUser.uid;
                             const batch = writeBatch(db);
 
                             const collectionsToClear = ['episodes', 'gi_logs', 'health_notes'];
 
                             for (const coll of collectionsToClear) {
-                                const q = query(collection(db, coll), where('userId', '==', uid));
+                                const q = query(collection(db, coll), where('childId', '==', childId));
                                 const snapshot = await getDocs(q);
                                 snapshot.forEach((doc) => {
                                     batch.delete(doc.ref);
@@ -202,17 +207,46 @@ export default function TipsScreen() {
             resizeMode="cover"
             className="flex-1"
         >
-            <View className="flex-1 bg-black/60 items-center justify-center p-5" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
+            <View className="flex-1 bg-black/60" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
+            <ScrollView contentContainerStyle={{ alignItems: 'center', padding: 20, paddingBottom: 120 }}>
                 <Text className="text-white text-2xl font-quicksand text-center mb-8">
                     {i18n.t('tipsMessage')}
                 </Text>
 
                 <TouchableOpacity
-                    className="bg-lantern-marine p-5 rounded-full w-[80%] items-center border-2 border-lantern-light mb-12"
+                    className="bg-lantern-marine p-5 rounded-full w-[80%] items-center border-2 border-lantern-light mb-8"
                     onPress={() => Linking.openURL('https://littlelanterns.info')}
                 >
                     <Text className="text-white text-xl font-bold">{i18n.t('goThereNow')}</Text>
                 </TouchableOpacity>
+
+                {/* Family Sharing Card */}
+                {inviteCode ? (
+                    <View className="bg-[#1a1a1a]/80 p-6 rounded-3xl w-full border border-gray-700 items-center mb-6">
+                        <Text className="text-amber-500 text-lg font-bold mb-1 font-quicksand text-center">
+                            Family Sharing
+                        </Text>
+                        {childName ? (
+                            <Text className="text-gray-400 text-xs font-quicksand text-center mb-4">
+                                Tracking for <Text className="text-white font-bold">{childName}</Text>
+                            </Text>
+                        ) : null}
+                        <Text className="text-gray-300 text-xs font-quicksand text-center mb-3">
+                            Share this code so another caregiver can join and see the same data.
+                        </Text>
+                        <TouchableOpacity
+                            className="bg-[#2a2a2a] px-8 py-4 rounded-2xl border border-amber-500 mb-3"
+                            onPress={handleCopyCode}
+                        >
+                            <Text className="text-amber-400 text-2xl font-bold tracking-widest text-center font-quicksand">
+                                {inviteCode}
+                            </Text>
+                        </TouchableOpacity>
+                        <Text className="text-gray-500 text-xs font-quicksand">
+                            Tap to share
+                        </Text>
+                    </View>
+                ) : null}
 
                 {/* Google Backup Section */}
                 {!isLinkedToGoogle ? (
@@ -259,7 +293,7 @@ export default function TipsScreen() {
                 {/* DEV ONLY: Seed Data */}
                 {__DEV__ && (
                     <TouchableOpacity
-                        className="mt-12 bg-gray-800 p-4 rounded-xl items-center w-[80%] border border-gray-600 self-center"
+                        className="mt-4 bg-gray-800 p-4 rounded-xl items-center w-[80%] border border-gray-600 self-center"
                         onPress={handleSeedData}
                         disabled={isLinking}
                     >
@@ -269,6 +303,7 @@ export default function TipsScreen() {
                     </TouchableOpacity>
                 )}
 
+            </ScrollView>
             </View>
 
             <StatusModal
