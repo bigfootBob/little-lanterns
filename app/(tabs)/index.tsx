@@ -1,7 +1,9 @@
 import * as Haptics from 'expo-haptics';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleAuthProvider, linkWithCredential } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, ImageBackground, Keyboard, Modal, Image as RNImage, ScrollView, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Animated, Dimensions, FlatList, ImageBackground, Keyboard, Modal, Image as RNImage, ScrollView, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { Svg, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
@@ -31,6 +33,17 @@ export default function App() {
   const [statusModalType, setStatusModalType] = useState<'success' | 'error'>('success');
   const [statusModalMessage, setStatusModalMessage] = useState('');
 
+  // Login / Google link modal state
+  const [loginModalVisible, setLoginModalVisible] = useState(false);
+  const [isLinking, setIsLinking] = useState(false);
+  const isLinkedToGoogle = auth.currentUser?.providerData.some(p => p.providerId === 'google.com') ?? false;
+
+  // Offset picker state
+  const [offsetModalVisible, setOffsetModalVisible] = useState(false);
+  const [selectedOffset, setSelectedOffset] = useState(0);
+  const ITEM_HEIGHT = 52;
+  const MINUTES = Array.from({ length: 61 }, (_, i) => i); // 0–60
+
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     if (active) {
@@ -59,10 +72,57 @@ export default function App() {
     };
   }, [active]);
 
-  const handleStart = () => {
+  const handleStart = (offsetMinutes = 0) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSeconds(offsetMinutes * 60);
     setActive(true);
     setReviewing(false);
+  };
+
+  const handleStartWithOffset = () => {
+    setOffsetModalVisible(false);
+    handleStart(selectedOffset);
+    setSelectedOffset(0);
+  };
+
+  const handleGoogleLink = async () => {
+    if (!auth.currentUser) return;
+    setIsLinking(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      if (userInfo.data?.idToken) {
+        const credential = GoogleAuthProvider.credential(userInfo.data.idToken);
+        try {
+          await linkWithCredential(auth.currentUser, credential);
+          setLoginModalVisible(false);
+          setStatusModalType('success');
+          setStatusModalMessage(i18n.t('backupSuccessMessage'));
+          setStatusModalVisible(true);
+        } catch (linkError: any) {
+          if (linkError.code === 'auth/credential-already-in-use') {
+            await import('firebase/auth').then(async ({ signInWithCredential }) => {
+              await signInWithCredential(auth, credential);
+              setLoginModalVisible(false);
+              setStatusModalType('success');
+              setStatusModalMessage(i18n.t('restoreSuccessMessage'));
+              setStatusModalVisible(true);
+            });
+          } else {
+            throw linkError;
+          }
+        }
+      } else {
+        throw new Error('No ID Token found');
+      }
+    } catch (error: any) {
+      setLoginModalVisible(false);
+      setStatusModalType('error');
+      setStatusModalMessage(error.message);
+      setStatusModalVisible(true);
+    } finally {
+      setIsLinking(false);
+    }
   };
 
   const handleStop = () => {
@@ -139,6 +199,11 @@ export default function App() {
                   Tracking for <Text className="text-lantern-light font-bold">{childName}</Text>
                 </Text>
               ) : null}
+              <TouchableOpacity className="mt-2" onPress={() => setLoginModalVisible(true)}>
+                <Text className={`text-xs font-quicksand ${isLinkedToGoogle ? 'text-green-400' : 'text-white/40 underline'}`}>
+                  {isLinkedToGoogle ? 'Backed up to Google' : 'Login / Backup'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* Main Content Section — centered in remaining space */}
@@ -161,11 +226,11 @@ export default function App() {
                       <Svg key={i} width={screenWidth} height={160} viewBox="0 0 1440 160" preserveAspectRatio="none">
                         <Path
                           d="M0,80L48,90.7C96,101,192,123,288,117.3C384,112,480,80,576,64C672,48,768,48,864,58.7C960,69,1056,91,1152,96C1248,101,1344,91,1392,85.3L1440,80L1440,160L0,160Z"
-                          fill="rgba(0,153,255,0.22)"
+                          fill="rgba(0,153,255,0.18)"
                         />
                         <Path
                           d="M0,112L48,101.3C96,91,192,69,288,69.3C384,69,480,91,576,106.7C672,123,768,123,864,112C960,101,1056,80,1152,74.7C1248,69,1344,80,1392,85.3L1440,91L1440,160L0,160Z"
-                          fill="rgba(0,153,255,0.12)"
+                          fill="rgba(0,153,255,0.10)"
                         />
                       </Svg>
                     ))}
@@ -193,12 +258,17 @@ export default function App() {
               </Animated.Text>
 
               {!active && !reviewing ? (
-                <TouchableOpacity
-                  className="bg-lantern-marine p-8 rounded-full w-[80%] items-center shadow-lg border-2 border-lantern-light"
-                  onPress={handleStart}
-                >
-                  <Text className="text-white text-xl font-bold">{i18n.t('startTracking')}</Text>
-                </TouchableOpacity>
+                <View className="items-center w-full">
+                  <TouchableOpacity
+                    className="bg-lantern-marine p-8 rounded-full w-[80%] items-center shadow-lg border-2 border-lantern-light"
+                    onPress={() => handleStart(0)}
+                  >
+                    <Text className="text-white text-xl font-bold">{i18n.t('startTracking')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity className="mt-4" onPress={() => { setSelectedOffset(0); setOffsetModalVisible(true); }}>
+                    <Text className="text-white/50 text-xs font-quicksand underline">Started earlier?</Text>
+                  </TouchableOpacity>
+                </View>
               ) : active ? (
                 <TouchableOpacity
                   className="bg-red-500 p-8 rounded-full w-[80%] items-center shadow-lg border-2 border-lantern-light"
@@ -286,6 +356,120 @@ export default function App() {
             </View>
           </View>
         </TouchableWithoutFeedback>
+
+        {/* Login / Google Backup Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={loginModalVisible}
+          onRequestClose={() => setLoginModalVisible(false)}
+        >
+          <View className="flex-1 justify-center items-center bg-black/80 p-5">
+            <View className="bg-[#1a3749] rounded-2xl p-6 w-full max-w-sm border border-[#f3d275] items-center">
+              {isLinkedToGoogle ? (
+                <>
+                  <Text className="text-green-400 text-xl font-bold mb-2 font-castoro text-center">Account Secured</Text>
+                  <Text className="text-green-200/80 text-sm font-quicksand text-center leading-relaxed mb-6">
+                    Your tracker data is safely backed up to your Google Account.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text className="text-white text-xl font-bold mb-2 font-castoro text-center">Secure Your Data</Text>
+                  <Text className="text-gray-300 text-sm font-quicksand text-center leading-relaxed mb-6">
+                    Link a Google Account so your tracking history is preserved if you change phones or reinstall the app.
+                  </Text>
+                  <TouchableOpacity
+                    className={`p-4 rounded-full w-[80%] items-center mb-4 ${isLinking ? 'bg-gray-600' : 'bg-white'}`}
+                    onPress={handleGoogleLink}
+                    disabled={isLinking}
+                  >
+                    <Text className={`font-bold text-lg font-quicksand ${isLinking ? 'text-gray-300' : 'text-black'}`}>
+                      {isLinking ? 'Loading...' : i18n.t('backupToGoogle')}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              <TouchableOpacity
+                className="p-3 rounded-full items-center border border-gray-500 w-[80%]"
+                onPress={() => setLoginModalVisible(false)}
+              >
+                <Text className="text-gray-300 font-bold font-quicksand">{i18n.t('close')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Offset Picker Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={offsetModalVisible}
+          onRequestClose={() => setOffsetModalVisible(false)}
+        >
+          <View className="flex-1 justify-center items-center bg-black/80 p-5">
+            <View className="bg-[#1a3749] rounded-2xl p-6 w-full max-w-sm border border-[#f3d275] items-center">
+              <Text className="text-white text-xl font-bold mb-1 font-castoro text-center">Started earlier?</Text>
+              <Text className="text-gray-400 text-sm font-quicksand mb-5 text-center">How many minutes ago did it start?</Text>
+
+              {/* Scroll Wheel */}
+              <View style={{ height: ITEM_HEIGHT * 3, width: 180, position: 'relative' }}>
+                <View style={{
+                  position: 'absolute',
+                  top: ITEM_HEIGHT,
+                  left: 0,
+                  right: 0,
+                  height: ITEM_HEIGHT,
+                  borderTopWidth: 1,
+                  borderBottomWidth: 1,
+                  borderColor: '#f3d275',
+                  zIndex: 1,
+                }} pointerEvents="none" />
+                <FlatList
+                  data={MINUTES}
+                  keyExtractor={(item) => item.toString()}
+                  snapToInterval={ITEM_HEIGHT}
+                  decelerationRate="fast"
+                  showsVerticalScrollIndicator={false}
+                  initialScrollIndex={0}
+                  getItemLayout={(_, index) => ({ length: ITEM_HEIGHT, offset: ITEM_HEIGHT * index, index })}
+                  contentContainerStyle={{ paddingVertical: ITEM_HEIGHT }}
+                  onMomentumScrollEnd={(e) => {
+                    const index = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);
+                    setSelectedOffset(MINUTES[Math.max(0, Math.min(index, MINUTES.length - 1))] ?? 0);
+                  }}
+                  renderItem={({ item }) => (
+                    <View style={{ height: ITEM_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
+                      <Text style={{
+                        color: item === selectedOffset ? 'white' : 'rgba(255,255,255,0.25)',
+                        fontSize: item === selectedOffset ? 30 : 20,
+                        fontWeight: item === selectedOffset ? 'bold' : 'normal',
+                        fontFamily: 'Quicksand',
+                      }}>
+                        {item} min
+                      </Text>
+                    </View>
+                  )}
+                />
+              </View>
+
+              <View className="flex-row gap-3 mt-5 w-full justify-center">
+                <TouchableOpacity
+                  className="flex-1 bg-transparent p-3 rounded-full items-center border border-gray-500"
+                  onPress={() => { setOffsetModalVisible(false); setSelectedOffset(0); }}
+                >
+                  <Text className="text-gray-300 font-bold font-quicksand">Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="flex-1 bg-lantern-marine p-3 rounded-full items-center border border-lantern-light"
+                  onPress={handleStartWithOffset}
+                >
+                  <Text className="text-white font-bold font-quicksand">Start Tracking</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Status Modal (Success/Error) */}
         <StatusModal

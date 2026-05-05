@@ -1,8 +1,9 @@
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Dimensions, ImageBackground, Modal, ScrollView, SectionList, Text, TouchableOpacity, View } from 'react-native';
 import ImageViewing from "react-native-image-viewing";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ConfirmModal from '../../components/ConfirmModal';
 import StatusModal from '../../components/StatusModal';
 import { useChild } from '../../hooks/use-child';
 import { auth, db } from '../../firebaseConfig';
@@ -28,6 +29,10 @@ export default function GILogScreen() {
     const [statusModalVisible, setStatusModalVisible] = useState(false);
     const [statusModalType, setStatusModalType] = useState<'success' | 'error'>('success');
     const [statusModalMessage, setStatusModalMessage] = useState('');
+
+    // Confirm Delete Modal State
+    const [confirmVisible, setConfirmVisible] = useState(false);
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
     // Chart Modal State
     const [chartModalVisible, setChartModalVisible] = useState(false);
@@ -115,11 +120,29 @@ export default function GILogScreen() {
 
 
 
+    const handleDeleteLog = (id: string) => {
+        setPendingDeleteId(id);
+        setConfirmVisible(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!pendingDeleteId) return;
+        setConfirmVisible(false);
+        try {
+            await deleteDoc(doc(db, 'gi_logs', pendingDeleteId));
+        } catch (e: any) {
+            setStatusModalType('error');
+            setStatusModalMessage(e.message);
+            setStatusModalVisible(true);
+        }
+        setPendingDeleteId(null);
+    };
+
     const renderLogItem = ({ item }: { item: StoolLog }) => {
         const date = item.timestamp ? new Date(item.timestamp.seconds * 1000) : new Date();
         return (
             <View className="bg-[#2a2a2a] p-4 rounded-xl mb-3 flex-row items-center justify-between">
-                <View className="flex-row items-center">
+                <View className="flex-row items-center flex-1">
                     <View className={`w-8 h-8 rounded-full ${getBristolColor(item.type)} items-center justify-center mr-4`}>
                         <Text className="text-black font-bold font-quicksand">{item.type}</Text>
                     </View>
@@ -128,6 +151,9 @@ export default function GILogScreen() {
                         <Text className="text-gray-400 text-xs font-quicksand">{date.toLocaleString()}</Text>
                     </View>
                 </View>
+                <TouchableOpacity onPress={() => handleDeleteLog(item.id)} className="pl-4 py-1">
+                    <Text className="text-red-400 text-xs font-quicksand">Strike</Text>
+                </TouchableOpacity>
             </View>
         );
     };
@@ -216,6 +242,13 @@ export default function GILogScreen() {
                     type={statusModalType}
                     message={statusModalMessage}
                     onClose={() => setStatusModalVisible(false)}
+                />
+
+                {/* Confirm Delete Modal */}
+                <ConfirmModal
+                    visible={confirmVisible}
+                    onConfirm={confirmDelete}
+                    onCancel={() => { setConfirmVisible(false); setPendingDeleteId(null); }}
                 />
 
                 {/* Chart Modal */}

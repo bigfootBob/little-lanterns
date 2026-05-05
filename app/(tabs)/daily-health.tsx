@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Alert, ImageBackground, Keyboard, Modal, ScrollView, SectionList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ConfirmModal from '../../components/ConfirmModal';
 import StatusModal from '../../components/StatusModal';
 import { useChild } from '../../hooks/use-child';
 import { auth, db } from '../../firebaseConfig';
@@ -59,6 +60,8 @@ export default function DailyHealthScreen() {
     const [note, setNote] = useState('');
     const [notesHistory, setNotesHistory] = useState<any[]>([]);
     const [notesModalVisible, setNotesModalVisible] = useState(false);
+    const [confirmVisible, setConfirmVisible] = useState(false);
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
     // Status Modal State
     const [statusModalVisible, setStatusModalVisible] = useState(false);
@@ -284,6 +287,24 @@ export default function DailyHealthScreen() {
 
     const groupedNotes = groupNotesByWeek(notesHistory);
 
+    const handleDeleteNote = (id: string) => {
+        setPendingDeleteId(id);
+        setConfirmVisible(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!pendingDeleteId) return;
+        setConfirmVisible(false);
+        try {
+            await deleteDoc(doc(db, 'health_notes', pendingDeleteId));
+        } catch (e: any) {
+            setStatusModalType('error');
+            setStatusModalMessage(e.message);
+            setStatusModalVisible(true);
+        }
+        setPendingDeleteId(null);
+    };
+
     const renderNoteItem = ({ item }: { item: any }) => {
         let date = new Date();
         if (item.timestamp && item.timestamp.seconds) {
@@ -293,9 +314,14 @@ export default function DailyHealthScreen() {
         }
 
         return (
-            <View className="bg-[#2a2a2a] p-4 rounded-xl mb-3">
-                <Text className="text-white font-quicksand text-base mb-1">{item.note}</Text>
-                <Text className="text-gray-400 text-xs font-quicksand">{date.toLocaleString()}</Text>
+            <View className="bg-[#2a2a2a] p-4 rounded-xl mb-3 flex-row items-center justify-between">
+                <View className="flex-1">
+                    <Text className="text-white font-quicksand text-base mb-1">{item.note}</Text>
+                    <Text className="text-gray-400 text-xs font-quicksand">{date.toLocaleString()}</Text>
+                </View>
+                <TouchableOpacity onPress={() => handleDeleteNote(item.id)} className="pl-4 py-1">
+                    <Text className="text-red-400 text-xs font-quicksand">Strike</Text>
+                </TouchableOpacity>
             </View>
         );
     };
@@ -455,6 +481,13 @@ export default function DailyHealthScreen() {
                     type={statusModalType}
                     message={statusModalMessage}
                     onClose={() => setStatusModalVisible(false)}
+                />
+
+                {/* Confirm Delete Modal */}
+                <ConfirmModal
+                    visible={confirmVisible}
+                    onConfirm={confirmDelete}
+                    onCancel={() => { setConfirmVisible(false); setPendingDeleteId(null); }}
                 />
 
                 {/* Notes History Modal */}
