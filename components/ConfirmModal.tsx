@@ -24,10 +24,16 @@ export default function ConfirmModal({
             transparent={true}
             visible={visible}
             onRequestClose={onCancel}
+            accessibilityViewIsModal={true}
         >
             <View className="flex-1 justify-center items-center bg-black/80 p-5">
-                <View className="bg-[#1a3749] rounded-2xl p-6 w-full max-w-sm border border-[#f3d275] items-center">
+                <View
+                    className="bg-[#1a3749] rounded-2xl p-6 w-full max-w-sm border border-[#f3d275] items-center"
+                    accessibilityRole="alert"
+                >
                     <View
+                        accessible={false}
+                        importantForAccessibility="no"
                         style={{
                             width: 250,
                             height: 315,
@@ -46,6 +52,8 @@ export default function ConfirmModal({
                             source={require('../assets/images/datasave-error.webp')}
                             style={{ width: '100%', height: '100%', borderRadius: 12 }}
                             resizeMode="cover"
+                            accessibilityElementsHidden={true}
+                            importantForAccessibility="no"
                         />
                     </View>
 
@@ -62,12 +70,16 @@ export default function ConfirmModal({
                         <TouchableOpacity
                             className="flex-1 bg-transparent p-3 rounded-full items-center border border-gray-500"
                             onPress={onCancel}
+                            accessibilityRole="button"
+                            accessibilityLabel="Cancel"
                         >
                             <Text className="text-gray-300 font-bold font-quicksand">Cancel</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             className="flex-1 bg-red-700 p-3 rounded-full items-center border border-red-400"
                             onPress={onConfirm}
+                            accessibilityRole="button"
+                            accessibilityLabel={confirmLabel}
                         >
                             <Text className="text-white font-bold font-quicksand">{confirmLabel}</Text>
                         </TouchableOpacity>

@@ -1,7 +1,7 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, linkWithCredential } from 'firebase/auth';
-import { collection, doc, getDocs, query, where, writeBatch, Timestamp } from 'firebase/firestore';
-import { useState } from 'react';
+import { arrayUnion, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, updateDoc, where, writeBatch, Timestamp } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
 import { Alert, ImageBackground, Linking, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusModal from '../../components/StatusModal';
@@ -24,6 +24,57 @@ export default function TipsScreen() {
     const [statusModalTitle, setStatusModalTitle] = useState('');
     const [statusModalMessage, setStatusModalMessage] = useState('');
     const [isLinking, setIsLinking] = useState(false);
+
+    // Pending caregiver join requests awaiting approval
+    type JoinRequest = { id: string; requesterEmail: string | null };
+    const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+    const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!childId) { setJoinRequests([]); return; }
+        const q = query(
+            collection(db, 'children', childId, 'joinRequests'),
+            orderBy('requestedAt', 'asc')
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setJoinRequests(snapshot.docs.map((d) => ({
+                id: d.id,
+                requesterEmail: (d.data().requesterEmail as string | null) ?? null,
+            })));
+        });
+        return () => unsubscribe();
+    }, [childId]);
+
+    const handleApproveRequest = async (requesterUid: string) => {
+        if (!childId) return;
+        setProcessingRequestId(requesterUid);
+        try {
+            await updateDoc(doc(db, 'children', childId), {
+                caregivers: arrayUnion(requesterUid),
+            });
+            await deleteDoc(doc(db, 'children', childId, 'joinRequests', requesterUid));
+        } catch (error: any) {
+            console.error('Error approving join request:', error);
+            setStatusModalType('error');
+            setStatusModalTitle('Approval Failed');
+            setStatusModalMessage(error.message);
+            setStatusModalVisible(true);
+        } finally {
+            setProcessingRequestId(null);
+        }
+    };
+
+    const handleDenyRequest = async (requesterUid: string) => {
+        if (!childId) return;
+        setProcessingRequestId(requesterUid);
+        try {
+            await deleteDoc(doc(db, 'children', childId, 'joinRequests', requesterUid));
+        } catch (error: any) {
+            console.error('Error denying join request:', error);
+        } finally {
+            setProcessingRequestId(null);
+        }
+    };
 
     // Check if user is already linked to Google
     const isLinkedToGoogle = auth.currentUser?.providerData.some(
@@ -216,6 +267,8 @@ export default function TipsScreen() {
                 <TouchableOpacity
                     className="bg-lantern-marine p-5 rounded-full w-[80%] items-center border-2 border-lantern-light mb-8"
                     onPress={() => Linking.openURL('https://littlelanterns.info')}
+                    accessibilityRole="link"
+                    accessibilityLabel={i18n.t('goThereNow')}
                 >
                     <Text className="text-white text-xl font-bold">{i18n.t('goThereNow')}</Text>
                 </TouchableOpacity>
@@ -237,16 +290,60 @@ export default function TipsScreen() {
                         <TouchableOpacity
                             className="bg-[#2a2a2a] px-8 py-4 rounded-2xl border border-amber-500 mb-3"
                             onPress={handleCopyCode}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Invite code ${inviteCode}. Tap to share`}
                         >
                             <Text className="text-amber-400 text-2xl font-bold tracking-widest text-center font-quicksand">
                                 {inviteCode}
                             </Text>
                         </TouchableOpacity>
-                        <Text className="text-gray-500 text-xs font-quicksand">
+                        <Text className="text-gray-400 text-xs font-quicksand">
                             Tap to share
                         </Text>
                     </View>
                 ) : null}
+
+                {/* Pending Join Requests */}
+                {joinRequests.length > 0 && (
+                    <View
+                        className="bg-[#1a1a1a]/80 p-6 rounded-3xl w-full border border-amber-700 items-center mb-6"
+                        accessibilityRole="summary"
+                        accessibilityLabel={`${joinRequests.length} pending caregiver ${joinRequests.length === 1 ? 'request' : 'requests'}`}
+                    >
+                        <Text className="text-amber-500 text-lg font-bold mb-3 font-quicksand text-center">
+                            Pending Requests
+                        </Text>
+                        {joinRequests.map((req) => (
+                            <View key={req.id} className="w-full bg-[#2a2a2a] rounded-2xl p-4 mb-3 border border-gray-700">
+                                <Text className="text-white font-quicksand mb-3 text-center">
+                                    {req.requesterEmail ?? 'Someone'} wants to join as a caregiver
+                                </Text>
+                                <View className="flex-row gap-3 justify-center">
+                                    <TouchableOpacity
+                                        className="flex-1 bg-transparent p-3 rounded-full items-center border border-gray-500"
+                                        onPress={() => handleDenyRequest(req.id)}
+                                        disabled={processingRequestId === req.id}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Deny caregiver request from ${req.requesterEmail ?? 'this person'}`}
+                                        accessibilityState={{ disabled: processingRequestId === req.id, busy: processingRequestId === req.id }}
+                                    >
+                                        <Text className="text-gray-300 font-bold font-quicksand">Deny</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        className="flex-1 bg-[#00C851] p-3 rounded-full items-center border border-green-400"
+                                        onPress={() => handleApproveRequest(req.id)}
+                                        disabled={processingRequestId === req.id}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Approve caregiver request from ${req.requesterEmail ?? 'this person'}`}
+                                        accessibilityState={{ disabled: processingRequestId === req.id, busy: processingRequestId === req.id }}
+                                    >
+                                        <Text className="text-white font-bold font-quicksand">Approve</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                )}
 
                 {/* Google Backup Section */}
                 {!isLinkedToGoogle ? (
@@ -261,6 +358,9 @@ export default function TipsScreen() {
                             className={`p-4 rounded-full w-[80%] items-center ${isLinking ? 'bg-gray-600' : 'bg-white'}`}
                             onPress={handleGoogleLink}
                             disabled={isLinking}
+                            accessibilityRole="button"
+                            accessibilityLabel={i18n.t('backupToGoogle')}
+                            accessibilityState={{ disabled: isLinking, busy: isLinking }}
                         >
                             <Text className={`font-bold text-lg font-quicksand ${isLinking ? 'text-gray-300' : 'text-black'}`}>
                                 {isLinking ? "Loading..." : i18n.t('backupToGoogle')}
@@ -282,6 +382,9 @@ export default function TipsScreen() {
                             className="mt-8 border border-red-900/50 bg-red-950/30 p-4 rounded-xl items-center w-[80%] self-center"
                             onPress={handleClearData}
                             disabled={isLinking}
+                            accessibilityRole="button"
+                            accessibilityLabel={i18n.t('clearDataTitle')}
+                            accessibilityState={{ disabled: isLinking, busy: isLinking }}
                         >
                             <Text className="text-red-500 font-bold font-quicksand text-center">
                                 {isLinking ? "Processing..." : i18n.t('clearDataTitle')}
@@ -296,6 +399,9 @@ export default function TipsScreen() {
                         className="mt-4 bg-gray-800 p-4 rounded-xl items-center w-[80%] border border-gray-600 self-center"
                         onPress={handleSeedData}
                         disabled={isLinking}
+                        accessibilityRole="button"
+                        accessibilityLabel="Seed sample data (development only)"
+                        accessibilityState={{ disabled: isLinking, busy: isLinking }}
                     >
                         <Text className="text-gray-300 font-bold font-quicksand">
                             {isLinking ? "Generating..." : "🛠️ Seed Sample Data"}

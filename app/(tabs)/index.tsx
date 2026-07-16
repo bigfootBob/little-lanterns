@@ -211,7 +211,11 @@ export default function App() {
 
               {/* Scrolling wave + solid fill to bottom — visible only while active */}
               {active && (
-                <View style={{ position: 'absolute', bottom: -120, width: screenWidth, height: deviceHeight * 0.38, overflow: 'hidden' }}>
+                <View
+                  style={{ position: 'absolute', bottom: -120, width: screenWidth, height: deviceHeight * 0.38, overflow: 'hidden' }}
+                  accessibilityElementsHidden={true}
+                  importantForAccessibility="no-hide-descendants"
+                >
                   {/* Wave crest */}
                   <Animated.View style={{
                     flexDirection: 'row',
@@ -241,6 +245,7 @@ export default function App() {
               )}
 
               <Animated.Text
+                accessibilityLabel={`Elapsed time: ${seconds} seconds`}
                 style={{
                   transform: [{
                     scale: glowAnim.interpolate({
@@ -262,10 +267,18 @@ export default function App() {
                   <TouchableOpacity
                     className="bg-lantern-marine p-8 rounded-full w-[80%] items-center shadow-lg border-2 border-lantern-light"
                     onPress={() => handleStart(0)}
+                    accessibilityRole="button"
+                    accessibilityLabel={i18n.t('startTracking')}
                   >
                     <Text className="text-white text-xl font-bold">{i18n.t('startTracking')}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity className="mt-4" onPress={() => { setSelectedOffset(0); setOffsetModalVisible(true); }}>
+                  <TouchableOpacity
+                    className="mt-4"
+                    onPress={() => { setSelectedOffset(0); setOffsetModalVisible(true); }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Started earlier? Set a custom start time"
+                  >
                     <Text className="text-white/50 text-xs font-quicksand underline">Started earlier?</Text>
                   </TouchableOpacity>
                 </View>
@@ -273,6 +286,8 @@ export default function App() {
                 <TouchableOpacity
                   className="bg-red-500 p-8 rounded-full w-[80%] items-center shadow-lg border-2 border-lantern-light"
                   onPress={handleStop}
+                  accessibilityRole="button"
+                  accessibilityLabel={i18n.t('stopTracking')}
                 >
                   <Text className="text-white text-xl font-bold">{i18n.t('stopTracking')}</Text>
                 </TouchableOpacity>
@@ -293,6 +308,9 @@ export default function App() {
                   <TouchableOpacity
                     className="bg-[#2a2a2a] p-4 rounded-xl mb-5 w-[80%] border border-[#e9efee] flex-row justify-between items-center"
                     onPress={() => setCalmModalVisible(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={i18n.t('calmedByLabel')}
+                    accessibilityValue={{ text: calmedBy ? getCalmLabel(calmedBy, (key: string) => i18n.t(key)) : undefined }}
                   >
                     <Text className={calmedBy ? "text-white text-lg" : "text-[#999] text-lg"}>
                       {calmedBy ? getCalmLabel(calmedBy, (key: string) => i18n.t(key)) : i18n.t('calmedByLabel')}
@@ -306,6 +324,7 @@ export default function App() {
                     transparent={true}
                     visible={calmModalVisible}
                     onRequestClose={() => setCalmModalVisible(false)}
+                    accessibilityViewIsModal={true}
                   >
                     <View className="flex-1 justify-center items-center bg-black/60 z-50">
                       <View
@@ -326,6 +345,9 @@ export default function App() {
                                       setCalmedBy(option.key);
                                       setCalmModalVisible(false);
                                     }}
+                                    accessibilityRole="radio"
+                                    accessibilityLabel={i18n.t(option.label)}
+                                    accessibilityState={{ selected: calmedBy === option.key }}
                                   >
                                     <Text className="text-white text-base">{i18n.t(option.label)}</Text>
                                   </TouchableOpacity>
@@ -337,6 +359,8 @@ export default function App() {
                         <TouchableOpacity
                           className="mt-2 p-3 bg-lantern-marine rounded-full items-center"
                           onPress={() => setCalmModalVisible(false)}
+                          accessibilityRole="button"
+                          accessibilityLabel={i18n.t('close')}
                         >
                           <Text className="text-white font-bold">{i18n.t('close')}</Text>
                         </TouchableOpacity>

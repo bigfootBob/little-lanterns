@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { addDoc, collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { useState } from 'react';
 import { ImageBackground, Keyboard, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,10 +11,12 @@ import { auth, db } from '../firebaseConfig';
 
 type Tab = 'create' | 'join';
 
+// 8 characters from a 32-character alphabet (excludes ambiguous chars like 0/O, 1/I)
+// gives ~1.1 trillion combinations, making brute-force guessing infeasible.
 const generateInviteCode = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = 'LL-';
-    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
     return code;
 };
 
@@ -29,6 +31,8 @@ export default function ChildSetupScreen() {
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
     const [error, setError] = useState('');
+    const [pendingChildId, setPendingChildId] = useState<string | null>(null);
+    const [checkingApproval, setCheckingApproval] = useState(false);
 
     const isLinkedToGoogle = auth.currentUser?.providerData.some(
         (p) => p.providerId === 'google.com'
@@ -118,22 +122,51 @@ export default function ChildSetupScreen() {
             const data = childDoc.data();
 
             if ((data.caregivers as string[]).includes(uid)) {
+                // Already an approved caregiver for this child — go straight in.
                 await AsyncStorage.setItem('@child_id', childDoc.id);
                 await setChild(childDoc.id, data.name, data.inviteCode);
                 router.replace('/(tabs)');
                 return;
             }
 
-            await updateDoc(doc(db, 'children', childDoc.id), {
-                caregivers: [...data.caregivers, uid],
+            // Knowing the code is no longer enough to gain access on its own.
+            // Record a join request that an existing caregiver must approve
+            // before this account is added to the caregivers list.
+            await setDoc(doc(db, 'children', childDoc.id, 'joinRequests', uid), {
+                uid,
+                requesterEmail: auth.currentUser.email ?? null,
+                requestedAt: serverTimestamp(),
             });
 
-            await setChild(childDoc.id, data.name, data.inviteCode);
-            router.replace('/(tabs)');
+            setPendingChildId(childDoc.id);
         } catch (e: any) {
             setError(e.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCheckApproval = async () => {
+        if (!pendingChildId || !auth.currentUser) return;
+        setCheckingApproval(true);
+        setError('');
+        try {
+            const uid = auth.currentUser.uid;
+            const snap = await getDoc(doc(db, 'children', pendingChildId));
+            const data = snap.data();
+
+            if (data && (data.caregivers as string[]).includes(uid)) {
+                await AsyncStorage.setItem('@child_id', pendingChildId);
+                await setChild(pendingChildId, data.name, data.inviteCode);
+                router.replace('/(tabs)');
+                return;
+            }
+
+            setError('Still waiting for a caregiver to approve your request.');
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setCheckingApproval(false);
         }
     };
 
@@ -154,7 +187,7 @@ export default function ChildSetupScreen() {
                     >
                         <Text className="text-white text-3xl font-castoro text-center mb-2">Little Lanterns</Text>
                         <Text className="text-white/70 text-sm font-castoro-italic text-center mb-8">
-                            Let's get set up for your family
+                            Let&apos;s get set up for your family
                         </Text>
 
                         {/* Google Sign-In */}
@@ -169,13 +202,13 @@ export default function ChildSetupScreen() {
                                 {googleLoading ? (
                                     <Text className="text-gray-400 text-xs font-quicksand mt-2">Signing in...</Text>
                                 ) : (
-                                    <Text className="text-gray-500 text-xs font-quicksand mt-2">
+                                    <Text className="text-gray-400 text-xs font-quicksand mt-2">
                                         Sign in to restore an existing account
                                     </Text>
                                 )}
                                 <View className="flex-row items-center w-full mt-6 mb-2">
                                     <View className="flex-1 h-px bg-gray-700" />
-                                    <Text className="text-gray-500 font-quicksand text-xs mx-3">or set up a new profile</Text>
+                                    <Text className="text-gray-400 font-quicksand text-xs mx-3">or set up a new profile</Text>
                                     <View className="flex-1 h-px bg-gray-700" />
                                 </View>
                             </View>
@@ -209,7 +242,7 @@ export default function ChildSetupScreen() {
 
                         {tab === 'create' ? (
                             <View>
-                                <Text className="text-white font-quicksand mb-2">Child's first name</Text>
+                                <Text className="text-white font-quicksand mb-2">Child&apos;s first name</Text>
                                 <TextInput
                                     className="bg-[#2a2a2a] text-white p-4 rounded-xl mb-6 font-quicksand text-lg border border-gray-600"
                                     placeholder="e.g. Lily"
@@ -229,35 +262,78 @@ export default function ChildSetupScreen() {
                                     </Text>
                                 </TouchableOpacity>
                             </View>
+                        ) : pendingChildId ? (
+                            <View accessible accessibilityRole="alert">
+                                <View className="bg-amber-900/30 border border-amber-700 rounded-xl p-4 mb-4 items-center">
+                                    <Text className="text-amber-400 font-bold font-quicksand text-center mb-1">
+                                        Request sent
+                                    </Text>
+                                    <Text className="text-gray-300 text-sm font-quicksand text-center">
+                                        A caregiver already on this profile needs to approve you before you can see this child&apos;s data. Check back once they&apos;ve approved your request.
+                                    </Text>
+                                </View>
+                                <TouchableOpacity
+                                    className={`p-4 rounded-full items-center border-2 border-lantern-light ${checkingApproval ? 'bg-gray-600' : 'bg-lantern-marine'}`}
+                                    onPress={handleCheckApproval}
+                                    disabled={checkingApproval}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Check approval status"
+                                    accessibilityHint="Checks whether a caregiver has approved your join request yet"
+                                >
+                                    <Text className="text-white font-bold text-lg font-quicksand">
+                                        {checkingApproval ? 'Checking...' : "I've been approved — Continue"}
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    className="mt-4 self-center"
+                                    onPress={() => { setPendingChildId(null); setInviteCode(''); setError(''); }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Cancel request and enter a different code"
+                                >
+                                    <Text className="text-gray-400 text-xs font-quicksand underline">
+                                        Use a different code
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                         ) : (
                             <View>
                                 <Text className="text-white font-quicksand mb-2">Enter the invite code</Text>
                                 <Text className="text-gray-400 text-xs font-quicksand mb-4">
-                                    Ask the primary caregiver to share their invite code from the app's settings.
+                                    Ask the primary caregiver to share their invite code from the app&apos;s settings. Joining requires their approval.
                                 </Text>
                                 <TextInput
                                     className="bg-[#2a2a2a] text-white p-4 rounded-xl mb-6 font-quicksand text-lg border border-gray-600 text-center tracking-widest"
-                                    placeholder="LL-XXXX"
+                                    placeholder="LL-XXXXXXXX"
                                     placeholderTextColor="#666"
                                     value={inviteCode}
                                     onChangeText={setInviteCode}
                                     autoCapitalize="characters"
-                                    maxLength={7}
+                                    maxLength={11}
+                                    accessibilityLabel="Invite code"
+                                    accessibilityHint="Enter the invite code shared by the primary caregiver"
                                 />
                                 <TouchableOpacity
                                     className={`p-4 rounded-full items-center border-2 border-lantern-light ${loading ? 'bg-gray-600' : 'bg-lantern-marine'}`}
                                     onPress={handleJoin}
                                     disabled={loading}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={loading ? 'Sending join request' : 'Send join request'}
+                                    accessibilityState={{ disabled: loading, busy: loading }}
                                 >
                                     <Text className="text-white font-bold text-lg font-quicksand">
-                                        {loading ? 'Joining...' : 'Join Family'}
+                                        {loading ? 'Sending request...' : 'Request to Join'}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
                         )}
 
                         {error ? (
-                            <Text className="text-red-400 text-center font-quicksand mt-4">{error}</Text>
+                            <Text
+                                className="text-red-400 text-center font-quicksand mt-4"
+                                accessibilityRole="alert"
+                            >
+                                {error}
+                            </Text>
                         ) : null}
                     </View>
                 </TouchableWithoutFeedback>

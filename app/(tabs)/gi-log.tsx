@@ -151,7 +151,13 @@ export default function GILogScreen() {
                         <Text className="text-gray-400 text-xs font-quicksand">{date.toLocaleString()}</Text>
                     </View>
                 </View>
-                <TouchableOpacity onPress={() => handleDeleteLog(item.id)} className="pl-4 py-1">
+                <TouchableOpacity
+                    onPress={() => handleDeleteLog(item.id)}
+                    className="pl-4 py-1"
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${i18n.t(`type${item.type}`)} log from ${date.toLocaleString()}`}
+                >
                     <Text className="text-red-400 text-xs font-quicksand">Strike</Text>
                 </TouchableOpacity>
             </View>
@@ -181,7 +187,12 @@ export default function GILogScreen() {
 
                             <View className="flex-row justify-between items-center mb-2 px-2">
                                 <Text className="text-gray-400 text-xs italic font-quicksand">{i18n.t('scrollInstructions')}</Text>
-                                <TouchableOpacity onPress={() => setChartModalVisible(true)}>
+                                <TouchableOpacity
+                                    onPress={() => setChartModalVisible(true)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={i18n.t('viewChart')}
+                                >
                                     <Text className="text-lantern-light text-xs font-bold underline font-quicksand">{i18n.t('viewChart')}</Text>
                                 </TouchableOpacity>
                             </View>
@@ -192,8 +203,20 @@ export default function GILogScreen() {
                                         <TouchableOpacity
                                             key={type}
                                             onPress={() => setSelectedType(type)}
-                                            className={`p-4 rounded-2xl items-center justify-center w-[46%] m-1 aspect-square border-2 ${selectedType === type ? 'bg-amber-600 border-lantern-light' : 'bg-gray-800 border-lantern-light'}`}
+                                            className={`p-4 rounded-2xl items-center justify-center w-[46%] m-1 aspect-square border-2 ${selectedType === type ? 'bg-amber-600 border-white' : 'bg-gray-800 border-lantern-light'}`}
+                                            accessibilityRole="radio"
+                                            accessibilityLabel={i18n.t(`type${type}`)}
+                                            accessibilityState={{ selected: selectedType === type }}
                                         >
+                                            {selectedType === type && (
+                                                <View
+                                                    className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-white items-center justify-center"
+                                                    accessibilityElementsHidden={true}
+                                                    importantForAccessibility="no"
+                                                >
+                                                    <Text className="text-amber-700 text-xs font-bold">✓</Text>
+                                                </View>
+                                            )}
                                             <View className={`w-10 h-10 rounded-full ${getBristolColor(type)} items-center justify-center mb-2`}>
                                                 <Text className="text-black font-bold text-lg font-quicksand">{type}</Text>
                                             </View>
@@ -220,6 +243,9 @@ export default function GILogScreen() {
                                 className={`p-4 rounded-full w-[80%] self-center items-center ${selectedType ? 'bg-[#00C851]' : 'bg-gray-700'} border-2 border-lantern-light`}
                                 onPress={handleSave}
                                 disabled={!selectedType}
+                                accessibilityRole="button"
+                                accessibilityLabel={i18n.t('saveLog')}
+                                accessibilityState={{ disabled: !selectedType }}
                             >
                                 <Text className={`text-xl font-bold font-quicksand ${selectedType ? 'text-white' : 'text-gray-400'}`}>
                                     {i18n.t('saveLog')}
@@ -229,6 +255,9 @@ export default function GILogScreen() {
                             <TouchableOpacity
                                 onPress={() => setHistoryModalVisible(true)}
                                 className="mt-4 self-center"
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                accessibilityRole="button"
+                                accessibilityLabel={i18n.t('viewHistory')}
                             >
                                 <Text className="text-lantern-light underline font-quicksand">{i18n.t('viewHistory')}</Text>
                             </TouchableOpacity>
@@ -281,6 +310,8 @@ export default function GILogScreen() {
                                 <TouchableOpacity
                                     onPress={() => setChartModalVisible(false)}
                                     className="bg-[#1a3749]/90 px-8 py-3 rounded-full border border-lantern-light/50"
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Close chart"
                                 >
                                     <Text className="text-lantern-light font-bold tracking-widest text-lg font-quicksand">CLOSE</Text>
                                 </TouchableOpacity>
@@ -295,18 +326,24 @@ export default function GILogScreen() {
                     transparent={true}
                     visible={historyModalVisible}
                     onRequestClose={() => setHistoryModalVisible(false)}
+                    accessibilityViewIsModal={true}
                 >
                     <View className="flex-1 bg-black/95" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
                         <View className="flex-1 p-5">
                             <View className="flex-row justify-between items-center mb-4 border-b border-gray-700 pb-2">
                                 <Text className="text-white text-2xl font-bold font-castoro">{i18n.t('historyTitle')}</Text>
-                                <TouchableOpacity onPress={() => setHistoryModalVisible(false)} className="bg-gray-800 p-2 rounded-lg">
+                                <TouchableOpacity
+                                    onPress={() => setHistoryModalVisible(false)}
+                                    className="bg-gray-800 p-2 rounded-lg"
+                                    accessibilityRole="button"
+                                    accessibilityLabel={i18n.t('close')}
+                                >
                                     <Text className="text-lantern-light font-bold font-quicksand">{i18n.t('close')}</Text>
                                 </TouchableOpacity>
                             </View>
 
                             {logs.length === 0 ? (
-                                <Text className="text-gray-500 text-center mt-10 font-quicksand">{i18n.t('noLogs')}</Text>
+                                <Text className="text-gray-400 text-center mt-10 font-quicksand">{i18n.t('noLogs')}</Text>
                             ) : (
                                 <SectionList
                                     sections={groupedLogs}

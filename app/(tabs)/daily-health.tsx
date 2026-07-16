@@ -319,7 +319,13 @@ export default function DailyHealthScreen() {
                     <Text className="text-white font-quicksand text-base mb-1">{item.note}</Text>
                     <Text className="text-gray-400 text-xs font-quicksand">{date.toLocaleString()}</Text>
                 </View>
-                <TouchableOpacity onPress={() => handleDeleteNote(item.id)} className="pl-4 py-1">
+                <TouchableOpacity
+                    onPress={() => handleDeleteNote(item.id)}
+                    className="pl-4 py-1"
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete note: ${item.note}`}
+                >
                     <Text className="text-red-400 text-xs font-quicksand">Strike</Text>
                 </TouchableOpacity>
             </View>
@@ -355,17 +361,23 @@ export default function DailyHealthScreen() {
                                     <TouchableOpacity
                                         className="bg-gray-700 w-12 h-12 rounded-full items-center justify-center border-2 border-lantern-light"
                                         onPress={() => setMedFrequency(Math.max(0, medFrequency - 1))}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Decrease frequency"
                                     >
                                         <Text className="text-white text-2xl font-quicksand">-</Text>
                                     </TouchableOpacity>
 
-                                    <Text className="text-white text-4xl font-bold mx-8 font-quicksand">
+                                    <Text className="text-white text-4xl font-bold mx-8 font-quicksand" accessibilityLabel={`${medFrequency} times per day`}>
                                         {medFrequency}
                                     </Text>
 
                                     <TouchableOpacity
                                         className="bg-gray-700 w-12 h-12 rounded-full items-center justify-center border-2 border-lantern-light"
                                         onPress={() => setMedFrequency(Math.min(5, medFrequency + 1))}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Increase frequency"
                                     >
                                         <Text className="text-white text-2xl font-quicksand">+</Text>
                                     </TouchableOpacity>
@@ -375,6 +387,9 @@ export default function DailyHealthScreen() {
                                     className={`p-4 rounded-full w-[80%] items-center ${medFrequency > 0 ? 'bg-amber-600' : 'bg-gray-800'} border-2 border-lantern-light`}
                                     onPress={handleStartSetup}
                                     disabled={medFrequency === 0}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={i18n.t('startTrackingMeds')}
+                                    accessibilityState={{ disabled: medFrequency === 0 }}
                                 >
                                     <Text className="text-white font-bold text-lg font-quicksand">
                                         {i18n.t('startTrackingMeds')}
@@ -388,7 +403,12 @@ export default function DailyHealthScreen() {
                                     const customTime = medTimes[index];
                                     return (
                                         <View key={index} className="flex-row items-center justify-between mb-4 bg-[#2a2a2a] p-4 rounded-xl">
-                                            <TouchableOpacity onPress={() => openTimePicker(index)}>
+                                            <TouchableOpacity
+                                                onPress={() => openTimePicker(index)}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={`${i18n.t(slotKey)} dose time`}
+                                                accessibilityHint="Opens the time picker"
+                                            >
                                                 <Text className="text-white text-lg font-medium font-quicksand">
                                                     {customTime
                                                         ? customTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -402,6 +422,9 @@ export default function DailyHealthScreen() {
                                             <TouchableOpacity
                                                 className={`px-4 py-2 rounded-lg ${isGiven ? 'bg-green-600' : 'bg-gray-600'} border-2 border-lantern-light`}
                                                 onPress={() => toggleDose(index)}
+                                                accessibilityRole="switch"
+                                                accessibilityLabel={`${i18n.t(slotKey)} dose`}
+                                                accessibilityState={{ checked: isGiven }}
                                             >
                                                 <Text className="text-white font-bold text-sm font-quicksand">
                                                     {isGiven ? i18n.t('medGiven') : i18n.t('medNotGiven')}
@@ -414,6 +437,9 @@ export default function DailyHealthScreen() {
                                 <TouchableOpacity
                                     className="mt-4 items-center mb-4"
                                     onPress={() => setIsSetup(false)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Edit frequency"
                                 >
                                     <Text className="text-gray-400 text-sm font-quicksand underline">Edit Frequency</Text>
                                 </TouchableOpacity>
@@ -421,6 +447,9 @@ export default function DailyHealthScreen() {
                                 <TouchableOpacity
                                     className="items-center"
                                     onPress={handleClearAll}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={i18n.t('clearAllData')}
                                 >
                                     <Text className="text-red-400 text-sm font-bold font-quicksand">{i18n.t('clearAllData')}</Text>
                                 </TouchableOpacity>
@@ -460,6 +489,9 @@ export default function DailyHealthScreen() {
                             className={`p-4 rounded-full w-[80%] self-center items-center ${note.trim().length > 0 ? 'bg-[#00C851]' : 'bg-gray-700'} border-2 border-lantern-light`}
                             onPress={handleSaveNote}
                             disabled={note.trim().length === 0}
+                            accessibilityRole="button"
+                            accessibilityLabel={i18n.t('saveNote')}
+                            accessibilityState={{ disabled: note.trim().length === 0 }}
                         >
                             <Text className={`text-xl font-bold font-quicksand ${note.trim().length > 0 ? 'text-white' : 'text-gray-400'}`}>
                                 {i18n.t('saveNote')}
@@ -469,6 +501,9 @@ export default function DailyHealthScreen() {
                         <TouchableOpacity
                             onPress={() => setNotesModalVisible(true)}
                             className="mt-4 self-center"
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={i18n.t('viewHistory')}
                         >
                             <Text className="text-lantern-light underline font-quicksand">{i18n.t('viewHistory')}</Text>
                         </TouchableOpacity>
@@ -496,18 +531,24 @@ export default function DailyHealthScreen() {
                     transparent={true}
                     visible={notesModalVisible}
                     onRequestClose={() => setNotesModalVisible(false)}
+                    accessibilityViewIsModal={true}
                 >
                     <View className="flex-1 bg-black/95" style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
                         <View className="flex-1 p-5">
                             <View className="flex-row justify-between items-center mb-4 border-b border-gray-700 pb-2">
                                 <Text className="text-white text-2xl font-bold font-castoro">{i18n.t('notesHistoryTitle')}</Text>
-                                <TouchableOpacity onPress={() => setNotesModalVisible(false)} className="bg-gray-800 p-2 rounded-lg">
+                                <TouchableOpacity
+                                    onPress={() => setNotesModalVisible(false)}
+                                    className="bg-gray-800 p-2 rounded-lg"
+                                    accessibilityRole="button"
+                                    accessibilityLabel={i18n.t('close')}
+                                >
                                     <Text className="text-lantern-light font-bold font-quicksand">{i18n.t('close')}</Text>
                                 </TouchableOpacity>
                             </View>
 
                             {notesHistory.length === 0 ? (
-                                <Text className="text-gray-500 text-center mt-10 font-quicksand">{i18n.t('noNotes')}</Text>
+                                <Text className="text-gray-400 text-center mt-10 font-quicksand">{i18n.t('noNotes')}</Text>
                             ) : (
                                 <SectionList
                                     sections={groupedNotes}

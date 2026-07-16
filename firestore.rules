@@ -1,0 +1,97 @@
+rules_version = '2';
+
+// DRAFT — added as part of a security review (2026-07-16). No firestore.rules
+// file previously existed in this repo, so these rules have NOT been verified
+// against whatever is currently deployed to the live Firebase project.
+// Review carefully and deploy deliberately with:
+//   firebase deploy --only firestore:rules
+//
+// Data model assumed (from app/ source):
+//   children/{childId}            { name, inviteCode, caregivers: [uid, ...], createdBy, createdAt }
+//   children/{childId}/joinRequests/{uid}  { uid, requesterEmail, requestedAt }
+//   episodes/{id}, gi_logs/{id}, health_notes/{id}   each has a `childId` field
+//     pointing back at the owning child, plus `addedBy`.
+//
+// Design goal: only uids listed in a child's `caregivers` array can read or
+// write that child's health data. Joining a family now goes through the
+// `joinRequests` subcollection (see app/child-setup.tsx + app/(tabs)/tips.tsx)
+// instead of a client directly appending itself to `caregivers` — an existing
+// caregiver must approve by adding the requester's uid themselves.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isCaregiver(childId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/children/$(childId))
+        && request.auth.uid in get(/databases/$(database)/documents/children/$(childId)).data.caregivers;
+    }
+
+    match /children/{childId} {
+      // The child document itself only holds a display name, invite code, and
+      // the caregiver uid list — no health data. Any signed-in user needs to
+      // be able to look one up (by invite code, or by array-contains on their
+      // own uid at app startup), so reads are intentionally broader than
+      // writes. If the invite code itself is considered sensitive, move this
+      // lookup behind a Cloud Function instead of relaxing this further.
+      allow get, list: if isSignedIn();
+
+      // Creating a new child profile: only allowed as the sole initial
+      // caregiver (prevents a client from creating a doc pre-populated with
+      // someone else's uid).
+      allow create: if isSignedIn()
+        && request.resource.data.caregivers is list
+        && request.resource.data.caregivers == [request.auth.uid]
+        && request.resource.data.createdBy == request.auth.uid;
+
+      // Updates (e.g. approving a join request by adding a uid to
+      // `caregivers`) are restricted to existing caregivers.
+      allow update: if isCaregiver(childId);
+      allow delete: if false;
+
+      match /joinRequests/{requesterUid} {
+        // A user may only create/read/cancel their OWN pending request.
+        allow create: if isSignedIn() && request.auth.uid == requesterUid
+          && request.resource.data.uid == requesterUid;
+        allow get: if isSignedIn() && request.auth.uid == requesterUid;
+        // Existing caregivers can list all pending requests to approve/deny.
+        allow list: if isCaregiver(childId);
+        // Either the requester (cancel) or an existing caregiver (approve/deny)
+        // can delete the request once handled.
+        allow delete: if isSignedIn() && (request.auth.uid == requesterUid || isCaregiver(childId));
+        allow update: if false;
+      }
+    }
+
+    // Health data collections — all keyed by a `childId` field.
+    match /episodes/{docId} {
+      allow read, update, delete: if isCaregiver(resource.data.childId)
+        // one-time allowance for the legacy migration in
+        // app/child-setup.tsx (migrateExistingData), which stamps `childId`
+        // onto older docs that only had `userId`. Remove once all existing
+        // data has been migrated.
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isCaregiver(request.resource.data.childId);
+    }
+
+    match /gi_logs/{docId} {
+      allow read, update, delete: if isCaregiver(resource.data.childId)
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isCaregiver(request.resource.data.childId);
+    }
+
+    match /health_notes/{docId} {
+      allow read, update, delete: if isCaregiver(resource.data.childId)
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isCaregiver(request.resource.data.childId);
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

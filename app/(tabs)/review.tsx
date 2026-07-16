@@ -339,14 +339,14 @@ export default function ReviewScreen() {
                 <View className="flex-row w-full">
                     {/* Y-Axis */}
                     <View className="mr-2 mt-6 justify-between" style={{ height: 7 * 16 + 6 * 4 }}>
-                        {days.map(d => <Text key={d} className="text-gray-500 text-[10px] h-4 font-quicksand">{d}</Text>)}
+                        {days.map(d => <Text key={d} className="text-gray-400 text-[10px] h-4 font-quicksand">{d}</Text>)}
                     </View>
 
                     {/* Grid */}
                     <View className="flex-1">
                         {/* X-Axis labels */}
                         <View className="flex-row justify-between mb-2">
-                            {hours.map(h => <Text key={h} className="text-gray-500 text-[10px] font-quicksand">{h}:00</Text>)}
+                            {hours.map(h => <Text key={h} className="text-gray-400 text-[10px] font-quicksand">{h}:00</Text>)}
                         </View>
 
                         {heatmapData.grid.map((row, dayIdx) => (
@@ -370,14 +370,14 @@ export default function ReviewScreen() {
                             </View>
                         ))}
                         <View className="flex-row items-center justify-between mt-4">
-                            <Text className="text-gray-500 text-xs font-quicksand">Less</Text>
+                            <Text className="text-gray-400 text-xs font-quicksand">Less</Text>
                             <View className="flex-row gap-1">
                                 <View className="w-4 h-4 bg-[#f3d275] opacity-10 rounded-sm" />
                                 <View className="w-4 h-4 bg-[#f3d275] opacity-40 rounded-sm" />
                                 <View className="w-4 h-4 bg-[#f3d275] opacity-70 rounded-sm" />
                                 <View className="w-4 h-4 bg-[#f3d275] opacity-100 rounded-sm" />
                             </View>
-                            <Text className="text-gray-500 text-xs font-quicksand">More</Text>
+                            <Text className="text-gray-400 text-xs font-quicksand">More</Text>
                         </View>
                     </View>
                 </View>
@@ -399,6 +399,9 @@ export default function ReviewScreen() {
                                 key={f}
                                 onPress={() => setSelectedFilter(f)}
                                 className={`flex-1 py-2 rounded-md items-center ${selectedFilter === f ? 'bg-amber-600' : 'bg-transparent'}`}
+                                accessibilityRole="radio"
+                                accessibilityLabel={f === 'YTD' ? 'Year to date' : `${f} days`}
+                                accessibilityState={{ selected: selectedFilter === f }}
                             >
                                 <Text className={`font-bold font-quicksand ${selectedFilter === f ? 'text-white' : 'text-gray-400'}`}>
                                     {f === 'YTD' ? 'YTD' : `${f} Days`}
@@ -410,6 +413,8 @@ export default function ReviewScreen() {
                     <TouchableOpacity
                         className="mt-3 bg-gray-800 py-2 px-4 rounded-lg self-end border border-gray-600"
                         onPress={exportToCSV}
+                        accessibilityRole="button"
+                        accessibilityLabel={i18n.t('exportData')}
                     >
                         <Text className="text-white text-sm font-bold font-quicksand">↓ {i18n.t('exportData')}</Text>
                     </TouchableOpacity>
@@ -514,7 +519,7 @@ export default function ReviewScreen() {
                                     </View>
                                 </View>
                             ) : (
-                                <Text className="text-gray-500 font-quicksand text-center py-4">No intervention data saved yet.</Text>
+                                <Text className="text-gray-400 font-quicksand text-center py-4">No intervention data saved yet.</Text>
                             )}
                         </View>
 

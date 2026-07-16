@@ -136,17 +136,32 @@ export default function TabLayout() {
 
             {/* Footer Links */}
             <View className="absolute bottom-[60px] w-full flex-row justify-center items-center">
-                <TouchableOpacity onPress={isLinkedToGoogle ? handleLogout : () => router.push('/(tabs)/tips')}>
+                <TouchableOpacity
+                    onPress={isLinkedToGoogle ? handleLogout : () => router.push('/(tabs)/tips')}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={isLinkedToGoogle ? 'Logout' : 'Login'}
+                >
                     <Text className="text-white/80 font-quicksand underline text-sm">
                         {isLinkedToGoogle ? 'Logout' : 'Login'}
                     </Text>
                 </TouchableOpacity>
                 <Text className="text-white/50 mx-3">|</Text>
-                <TouchableOpacity onPress={() => setModalVisible(true)}>
+                <TouchableOpacity
+                    onPress={() => setModalVisible(true)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={i18n.t('howToUse')}
+                >
                     <Text className="text-white/80 font-quicksand underline text-sm">{i18n.t('howToUse')}</Text>
                 </TouchableOpacity>
                 <Text className="text-white/50 mx-3">|</Text>
-                <TouchableOpacity onPress={() => setPrivacyModalVisible(true)}>
+                <TouchableOpacity
+                    onPress={() => setPrivacyModalVisible(true)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={i18n.t('privacyFooterLink')}
+                >
                     <Text className="text-white/80 font-quicksand underline text-sm">{i18n.t('privacyFooterLink')}</Text>
                 </TouchableOpacity>
             </View>
@@ -157,6 +172,7 @@ export default function TabLayout() {
                 transparent={true}
                 visible={modalVisible}
                 onRequestClose={() => setModalVisible(false)}
+                accessibilityViewIsModal={true}
             >
                 <View className="flex-1 justify-center items-center bg-black/80 p-5">
                     <View className="bg-[#1a3749] rounded-2xl p-6 w-full max-w-md border border-[#f3d275]">
@@ -169,6 +185,8 @@ export default function TabLayout() {
                         <TouchableOpacity
                             className="bg-lantern-marine p-3 rounded-full items-center border border-[#f3d275]"
                             onPress={() => setModalVisible(false)}
+                            accessibilityRole="button"
+                            accessibilityLabel={i18n.t('close')}
                         >
                             <Text className="text-white font-bold">{i18n.t('close')}</Text>
                         </TouchableOpacity>
@@ -184,6 +202,7 @@ export default function TabLayout() {
                 onRequestClose={() => {
                     // Do not allow Android back button to close if unacknowledged, forcing acknowledgment
                 }}
+                accessibilityViewIsModal={true}
             >
                 <View className="flex-1 justify-center items-center bg-black/90 p-5">
                     <View className="bg-[#1a3749] rounded-2xl w-full max-w-lg border border-[#f3d275] h-[75vh] flex-col">
@@ -212,6 +231,8 @@ export default function TabLayout() {
                             <TouchableOpacity
                                 className="bg-lantern-marine p-4 rounded-full items-center border border-[#f3d275]"
                                 onPress={acknowledgePrivacy}
+                                accessibilityRole="button"
+                                accessibilityLabel={i18n.t('privacyAgreeButton')}
                             >
                                 <Text className="text-white font-bold text-lg">{i18n.t('privacyAgreeButton')}</Text>
                             </TouchableOpacity>

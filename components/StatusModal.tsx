@@ -17,10 +17,17 @@ export default function StatusModal({ visible, type, title, message, onClose }: 
             transparent={true}
             visible={visible}
             onRequestClose={onClose}
+            accessibilityViewIsModal={true}
         >
             <View className="flex-1 justify-center items-center bg-black/80 p-5">
-                <View className="bg-[#1a3749] rounded-2xl p-6 w-full max-w-sm border border-[#f3d275] items-center">
+                <View
+                    className="bg-[#1a3749] rounded-2xl p-6 w-full max-w-sm border border-[#f3d275] items-center"
+                    accessibilityRole="alert"
+                    accessibilityLiveRegion="polite"
+                >
                     <View
+                        accessible={false}
+                        importantForAccessibility="no"
                         style={{
                             width: 250,
                             height: 315,
@@ -45,6 +52,8 @@ export default function StatusModal({ visible, type, title, message, onClose }: 
                                 borderRadius: 12,
                             }}
                             resizeMode="cover"
+                            accessibilityElementsHidden={true}
+                            importantForAccessibility="no"
                         />
                     </View>
                     <Text className="text-white text-xl font-bold mb-2 font-castoro text-center">
@@ -58,6 +67,8 @@ export default function StatusModal({ visible, type, title, message, onClose }: 
                     <TouchableOpacity
                         className="bg-lantern-marine p-3 rounded-full items-center border border-[#f3d275] min-w-[120px] mt-4"
                         onPress={onClose}
+                        accessibilityRole="button"
+                        accessibilityLabel={i18n.t('close')}
                     >
                         <Text className="text-white font-bold">{i18n.t('close')}</Text>
                     </TouchableOpacity>
